@@ -1,0 +1,57 @@
+# --- Structurizr ---
+.structurizr/
+
+# --- Python ---
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+*.egg-info/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# --- C++ / CUDA builds ---
+build/
+out/
+cmake-build-*/
+CMakeUserPresets.json
+*.o
+*.obj
+*.so
+*.dll
+*.exe
+*.lib
+*.a
+*.pdb
+*.ptx
+*.cubin
+*.fatbin
+
+# --- Generated gRPC / Protobuf code ---
+*.pb.h
+*.pb.cc
+*.grpc.pb.h
+*.grpc.pb.cc
+*_pb2.py
+*_pb2_grpc.py
+*_pb2.pyi
+
+# --- Data (OSM extracts and preprocessed graphs) ---
+*.osm.pbf
+data/
+
+# --- Secrets ---
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+
+# --- IDE / OS ---
+.vscode/
+.idea/
+.vs/
+*.swp
+.DS_Store
+Thumbs.db
