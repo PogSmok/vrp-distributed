@@ -1,0 +1,166 @@
+name: CI
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build-and-test:
+    name: ${{ matrix.preset == 'release' && 'Release' || 'Debug' }} (${{ matrix.os }})
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ ubuntu-latest, windows-latest ]
+        preset: [ default, release ]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Set up build
+        uses: ./.github/actions/setup-build
+
+      - name: Configure
+        run: cmake --preset ${{ matrix.preset }}
+
+      - name: Build
+        run: cmake --build --preset ${{ matrix.preset }}
+
+      - name: Test
+        run: ctest --preset ${{ matrix.preset }}
+
+  sanitizers:
+    name: ${{ matrix.name }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - preset: asan
+            name: AddressSanitizer + UndefinedBehaviorSanitizer
+          - preset: tsan
+            name: ThreadSanitizer
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      # Sanitizer runtimes fail on the high-entropy address-space
+      # randomisation of recent runner kernels.
+      - name: Lower ASLR entropy
+        run: sudo sysctl vm.mmap_rnd_bits=28
+
+      - name: Set up build
+        uses: ./.github/actions/setup-build
+
+      - name: Configure
+        run: cmake --preset ${{ matrix.preset }}
+
+      - name: Build
+        run: cmake --build --preset ${{ matrix.preset }}
+
+      - name: Test
+        run: ctest --preset ${{ matrix.preset }}
+
+  valgrind:
+    name: Valgrind memcheck
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Install Valgrind
+        run: sudo apt-get update && sudo apt-get install -y valgrind
+
+      - name: Set up build
+        uses: ./.github/actions/setup-build
+
+      - name: Configure
+        run: cmake --preset default
+
+      - name: Build
+        run: cmake --build --preset default
+
+      # Catches reads of uninitialised memory, which ASan does not.
+      - name: Test under memcheck
+        run: >
+          valgrind --error-exitcode=1 --leak-check=full
+          --errors-for-leak-kinds=definite,indirect --track-origins=yes
+          build/default/core/tests/vrp_core_tests --gtest_brief=1
+
+  static-analysis:
+    name: clang-tidy
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Install clang-tidy
+        uses: ./.github/actions/install-llvm-tools
+        with:
+          packages: clang-tidy-22
+
+      - name: Set up build
+        uses: ./.github/actions/setup-build
+
+      - name: Configure
+        run: cmake --preset default
+
+      - name: Run clang-tidy
+        run: >
+          find core -type f -name "*.cpp"
+          | xargs -r -P "$(nproc)" -n 1 clang-tidy-22 -p build/default --quiet
+
+  format:
+    name: clang-format
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Install clang-format
+        uses: ./.github/actions/install-llvm-tools
+        with:
+          packages: clang-format-22
+
+      - name: Check formatting
+        run: >
+          git ls-files '*.cpp' '*.hpp' '*.h' '*.cu' '*.cuh'
+          | xargs -r clang-format-22 --dry-run --Werror
+
+  coverage:
+    name: Coverage
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Install lcov
+        run: sudo apt-get update && sudo apt-get install -y lcov
+
+      - name: Set up build
+        uses: ./.github/actions/setup-build
+
+      - name: Configure
+        run: cmake --preset coverage
+
+      - name: Build
+        run: cmake --build --preset coverage
+
+      - name: Test
+        run: ctest --preset coverage
+
+      - name: Generate coverage report
+        run: |
+          lcov --capture --directory build/coverage --output-file coverage.info --ignore-errors mismatch,inconsistent
+          # Keep only our own sources: drop system headers, tests and GoogleTest.
+          lcov --remove coverage.info '/usr/*' '*/tests/*' '*/_deps/*' --output-file coverage.info --ignore-errors mismatch,unused
+          lcov --summary coverage.info
+          genhtml coverage.info --output-directory coverage-html
+
+      - name: Upload HTML report
+        uses: actions/upload-artifact@v7
+        with:
+          name: coverage-report
+          path: coverage-html/

@@ -1,0 +1,18 @@
+name: Set up C++ build
+description: >
+  Restores the FetchContent download cache (GoogleTest), keyed by the runner
+  image and the CMake files that pin dependencies.
+
+runs:
+  using: composite
+  steps:
+    - name: Read runner image version
+      id: image
+      shell: bash
+      run: echo "version=${ImageVersion:-unknown}" >> "$GITHUB_OUTPUT"
+
+    - name: Cache FetchContent dependencies
+      uses: actions/cache@v6
+      with:
+        path: _deps
+        key: ${{ runner.os }}-${{ steps.image.outputs.version }}-fetchcontent-${{ hashFiles('CMakeLists.txt') }}

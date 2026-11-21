@@ -13,9 +13,12 @@ venv/
 
 # --- C++ / CUDA builds ---
 build/
+build-*/
 out/
 cmake-build-*/
+_deps/
 CMakeUserPresets.json
+compile_commands.json
 *.o
 *.obj
 *.so
@@ -27,6 +30,15 @@ CMakeUserPresets.json
 *.ptx
 *.cubin
 *.fatbin
+
+# --- Coverage and sanitizer output ---
+*.gcno
+*.gcda
+*.gcov
+coverage.info
+coverage-html/
+*.profraw
+*.profdata
 
 # --- Generated gRPC / Protobuf code ---
 *.pb.h
