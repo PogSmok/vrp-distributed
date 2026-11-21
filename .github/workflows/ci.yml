@@ -153,7 +153,7 @@ jobs:
 
       - name: Generate coverage report
         run: |
-          lcov --capture --directory build/coverage --output-file coverage.info --ignore-errors mismatch
+          lcov --capture --directory build/coverage --output-file coverage.info --ignore-errors mismatch,inconsistent
           # Keep only our own sources: drop system headers, tests and GoogleTest.
           lcov --remove coverage.info '/usr/*' '*/tests/*' '*/_deps/*' --output-file coverage.info --ignore-errors mismatch,unused
           lcov --summary coverage.info
