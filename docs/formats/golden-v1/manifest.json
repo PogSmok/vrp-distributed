@@ -1,0 +1,43 @@
+{
+  "format_version": 1,
+  "graph_version": "golden-20261122-cd9e8b23",
+  "region": "golden",
+  "node_count": 3,
+  "edge_count": 4,
+  "files": {
+    "graph": {
+      "path": "graph.bin",
+      "size_bytes": 272,
+      "sha256": "cd9e8b2386dcb7c0a1761a792ad5526330ecc7aaf3cdcfb365a605640f13c2dc"
+    },
+    "edge_geometry": {
+      "path": "edge_geometry.bin",
+      "size_bytes": 160,
+      "sha256": "a5bd56e01b22fdd0cf497485937d1451bc20ad509eb17b775af560d805f6d5f4"
+    },
+    "osm_node_ids": {
+      "path": "osm_node_ids.bin",
+      "size_bytes": 80,
+      "sha256": "a80aa5b57a4dad154a485779171ad985e0695eabacc0b8fa501e9547b3ef5932"
+    }
+  },
+  "source": {
+    "extract": "golden.osm.pbf",
+    "extract_date": "2026-11-22",
+    "sha256": "dd56de4137951d9c92681b03416ec15f886b4482a27e3a517d32f085244cbe5d"
+  },
+  "simplification": {
+    "max_edge_length_m": 250
+  },
+  "speed_table": {
+    "version": "1",
+    "speeds_kmh": {
+      "residential": 30
+    }
+  },
+  "generator": {
+    "name": "golden-v1",
+    "version": "1"
+  },
+  "created_at": "2026-11-22T00:00:00Z"
+}

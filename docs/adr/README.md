@@ -65,3 +65,4 @@ are never reused; present tense.
 | 0024 | [Worker: separate session and compute threads, short GPU steps](0024-worker-separates-session-and-compute-threads.md)      | Accepted |
 | 0025 | [Route geometry: legs re-routed on the CPU in FINALIZE](0025-route-geometry-by-cpu-leg-routing.md)                         | Accepted |
 | 0026 | [Orchestrator implementation language: Python (asyncio)](0026-orchestrator-implementation-language.md)                     | Accepted |
+| 0027 | [Graph file format: custom little-endian binary with a JSON manifest](0027-graph-file-format.md)                           | Accepted |
