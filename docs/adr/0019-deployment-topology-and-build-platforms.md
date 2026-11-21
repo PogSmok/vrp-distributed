@@ -42,7 +42,9 @@ work without a public certificate authority.
   ports on the server to the lab network only. Workers accept connections
   only on their metrics port, and only from the server.
 - **Build.**
-  - CMake with vcpkg on a pinned baseline; MSVC on Windows, GCC on Linux.
+  - CMake, with MSVC on Windows and GCC on Linux. Every dependency is
+    pinned: GoogleTest by URL and hash through FetchContent, and the
+    worker's gRPC, Protobuf and libcurl through vcpkg on a pinned baseline.
   - CUDA pinned to 12.x, for GPUs of compute capability 6.0 or newer (CUDA
     13 drops GPUs older than 7.5). The binary carries native code for each
     architecture plus PTX, and every binary is stamped with its git

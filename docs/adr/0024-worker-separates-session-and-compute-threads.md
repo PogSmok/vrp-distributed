@@ -24,6 +24,10 @@ would hide a computation that is stuck.
 - **Stall detection.** Heartbeats carry the time of the last progress.
   After a stall timeout, the worker reports its task as failed and exits,
   and its service manager restarts it (0019).
+- **Out of memory.** Running out of host memory is fatal in the same way:
+  the worker logs it and exits, and is restarted. Recovery treats it like
+  any lost worker (0014). Task errors, by contrast, are returned as values
+  and reported (0013).
 
 ## Alternatives considered
 

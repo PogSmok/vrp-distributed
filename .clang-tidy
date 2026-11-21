@@ -1,0 +1,178 @@
+---
+Checks: >
+  clang-diagnostic-*,
+  clang-analyzer-*,
+  bugprone-*,
+  google-*,
+  modernize-*,
+  misc-*,
+  performance-*,
+  readability-*,
+  cppcoreguidelines-*,
+  cert-*,
+  hicpp-multiway-paths-covered,
+  hicpp-exception-baseclass,
+  -fuchsia-*,
+  -llvm-*,
+  -llvmlibc-*,
+  -altera-*,
+  -bugprone-easily-swappable-parameters,
+  -bugprone-branch-clone,
+  -modernize-use-nodiscard,
+  -cppcoreguidelines-special-member-functions,
+  -performance-unnecessary-value-param,
+  -misc-include-cleaner,
+  -misc-non-private-member-variables-in-classes,
+  -cppcoreguidelines-non-private-member-variables-in-classes,
+  -misc-no-recursion,
+  -misc-use-internal-linkage,
+  -misc-use-anonymous-namespace,
+  -cert-msc51-cpp,
+  -cppcoreguidelines-owning-memory,
+  -readability-function-cognitive-complexity,
+  -modernize-use-trailing-return-type,
+  -readability-magic-numbers,
+  -cppcoreguidelines-avoid-magic-numbers,
+  -readability-identifier-length,
+  -cppcoreguidelines-pro-type-reinterpret-cast,
+  -cppcoreguidelines-pro-bounds-avoid-unchecked-container-access,
+  -hicpp-signed-bitwise,
+  -readability-convert-member-functions-to-static,
+  -cppcoreguidelines-pro-type-vararg,
+  -cppcoreguidelines-avoid-non-const-global-variables,
+  -cppcoreguidelines-macro-usage,
+  -modernize-pass-by-value,
+  -cert-oop11-cpp,
+  -bugprone-narrowing-conversions,
+  -cppcoreguidelines-narrowing-conversions,
+  -bugprone-switch-missing-default-case,
+  -misc-header-include-cycle,
+  -cppcoreguidelines-pro-bounds-constant-array-index,
+  -bugprone-throwing-static-initialization,
+  -cert-err58-cpp,
+
+# The code base starts clean, so every finding fails CI.
+WarningsAsErrors: '*'
+
+# Only report issues in our own code, not in GoogleTest or system headers.
+HeaderFilterRegex: '.*[/\\](core)[/\\](include|src|tests)[/\\].*'
+
+FormatStyle: file
+
+CheckOptions:
+  # ---- Types ------------------------------------------------------------------
+
+  # Classes, structs, unions: MyClass
+  - key:   readability-identifier-naming.ClassCase
+    value: CamelCase
+  - key:   readability-identifier-naming.StructCase
+    value: CamelCase
+  - key:   readability-identifier-naming.UnionCase
+    value: CamelCase
+
+  # Type aliases and typedefs: MyAlias
+  - key:   readability-identifier-naming.TypeAliasCase
+    value: CamelCase
+  - key:   readability-identifier-naming.TypedefCase
+    value: CamelCase
+
+  # Template parameters: T, Container
+  - key:   readability-identifier-naming.TemplateParameterCase
+    value: CamelCase
+  - key:   readability-identifier-naming.TemplateTemplateParameterCase
+    value: CamelCase
+  - key:   readability-identifier-naming.ValueTemplateParameterCase
+    value: CamelCase
+
+  # Enums: MyEnum
+  - key:   readability-identifier-naming.EnumCase
+    value: CamelCase
+
+  # ---- Functions --------------------------------------------------------------
+
+  # Free and member functions: MyFunction
+  - key:   readability-identifier-naming.FunctionCase
+    value: CamelCase
+  - key:   readability-identifier-naming.MethodCase
+    value: CamelCase
+
+  # ---- Variables --------------------------------------------------------------
+
+  # Local variables and parameters: my_variable
+  - key:   readability-identifier-naming.VariableCase
+    value: lower_case
+  - key:   readability-identifier-naming.ParameterCase
+    value: lower_case
+  - key:   readability-identifier-naming.LocalVariableCase
+    value: lower_case
+
+  # Member variables: member_ (trailing underscore for private/protected)
+  - key:   readability-identifier-naming.MemberCase
+    value: lower_case
+  - key:   readability-identifier-naming.PrivateMemberSuffix
+    value: '_'
+  - key:   readability-identifier-naming.ProtectedMemberSuffix
+    value: '_'
+
+  # Static member variables, allow trailing underscore
+  - key: readability-identifier-naming.ClassMemberCase
+    value: lower_case
+  - key: readability-identifier-naming.ClassMemberIgnoredRegexp
+    value: '^[a-z][a-z0-9_]*_$'
+
+  # Global variables: snake_case
+  - key:   readability-identifier-naming.GlobalVariableCase
+    value: lower_case
+
+  # ---- Constants --------------------------------------------------------------
+
+  # Constants: kMyConstant
+  - key:   readability-identifier-naming.GlobalConstantCase
+    value: CamelCase
+  - key:   readability-identifier-naming.GlobalConstantPrefix
+    value: 'k'
+  - key:   readability-identifier-naming.StaticConstantCase
+    value: CamelCase
+  - key:   readability-identifier-naming.StaticConstantPrefix
+    value: 'k'
+  - key:   readability-identifier-naming.ClassConstantCase
+    value: CamelCase
+  - key:   readability-identifier-naming.ClassConstantPrefix
+    value: 'k'
+  # Local constants are snake_case without prefix
+  - key:   readability-identifier-naming.LocalConstantCase
+    value: lower_case
+  - key:   readability-identifier-naming.LocalConstantPrefix
+    value: ""
+
+  # Enum constants: kMyValue
+  - key:   readability-identifier-naming.EnumConstantCase
+    value: CamelCase
+  - key:   readability-identifier-naming.EnumConstantPrefix
+    value: 'k'
+
+  # ---- Other ------------------------------------------------------------------
+
+  # Namespaces: my_namespace
+  - key:   readability-identifier-naming.NamespaceCase
+    value: lower_case
+
+  # Macros: ALL_CAPS (header guards are exempt)
+  - key:   readability-identifier-naming.MacroDefinitionCase
+    value: UPPER_CASE
+  - key:   readability-identifier-naming.MacroDefinitionIgnoredRegexp
+    value: '^[A-Z0-9_]+_(H|HPP)_$'
+
+  # do { ... } while (false) is the standard way to write a statement macro.
+  - key: cppcoreguidelines-avoid-do-while.IgnoreMacros
+    value: true
+
+  # misc-const-correctness: values and refs only, skip pointer-as-value
+  - key: misc-const-correctness.WarnPointersAsValues
+    value: '0'
+  - key: misc-const-correctness.TransformValues
+    value: '1'
+  - key: misc-const-correctness.TransformReferences
+    value: '1'
+  - key: misc-const-correctness.TransformPointersAsValues
+    value: '0'
