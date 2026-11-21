@@ -2,76 +2,50 @@
 
 - **Status:** Accepted
 - **Date:** 2026-11-21
-- **Related:** 0002, 0007, 0008, 0012, 0016
+- **Related:** 0004, 0007, 0013, 0014, 0016, 0019
 
 ## Context
 
-The orchestrator is the system's entry point for both clients and workers.
-Any host that can reach it could register as a worker and, for example,
-poison the migrant pool (0004). Clients and workers also need access to
-stored objects (graphs, distance matrices, results), but should not hold
-object-store credentials.
-
-## Decision drivers
-
-- Encrypted transport on every control-plane connection.
-- Identify and authorise both clients and workers.
-- Workers and clients never hold long-lived storage credentials.
-- No full user-account system.
+Any host that can reach the orchestrator could pose as a worker (and, for
+example, poison the migrant pool) or as a client. Workers and clients need
+stored objects, but should not hold storage credentials.
 
 ## Decision
 
-All control-plane connections use TLS. Every client, worker and administrator
-presents a token with a role (`client`, `worker`, `admin`) that the
-orchestrator validates on each call and when a stream is opened. Tokens are
-issued by the administrator. Object-store access is granted only through
-short-lived presigned URLs issued by the orchestrator for specific objects:
-GET URLs for downloads (graphs, matrix rows, results) and PUT URLs for
-uploads (matrix rows, result artifacts). Only the orchestrator and the
-preprocessor hold object-store credentials.
-
-A presigned URL's signature covers the host name. The orchestrator therefore
-signs URLs for the object store's externally reachable address (configured
-separately from its own internal address), and that address is served over
-TLS.
+- **Transport and tokens.** All control-plane connections use TLS. Every
+  client, worker and administrator has its own named token with a role
+  (`client`, `worker`, `admin`). The orchestrator keeps the hash, name and
+  role of each token in a file, and re-reads it when the file's
+  modification time changes. Deleting a line revokes that token without a
+  restart.
+- **Workers.** A worker's identity is its token name. Leases belong to that
+  name, a new session replaces any old one, and reports are accepted only
+  from the worker an attempt is assigned to (0013, 0014).
+- **Clients.** Only the client that submitted a job, or an administrator,
+  can poll, cancel or fetch it.
+- **Storage.** Objects are reachable only through short-lived presigned URLs
+  for specific objects, signed for the object store's external TLS address.
+  A worker can ask for a fresh URL for its current attempt. Only the
+  orchestrator and the preprocessor hold storage credentials.
 
 ## Alternatives considered
 
-### Option A: Mutual TLS (client certificates)
-- Pros: strong authentication, no tokens in requests.
-- Cons: issuing and distributing certificates to every client and worker is
-  laborious.
-- Why rejected: operational overhead at this scale.
-
-### Option B: OAuth 2.0 / OpenID Connect
-- Pros: standard for user logins, supports external identity providers.
-- Cons: requires an identity provider and substantial integration work.
-- Why rejected: disproportionate for the project's scope.
-
-### Option C: Shared object-store credentials on workers and clients
-- Pros: simplest to implement.
-- Cons: broad access from every machine, manual configuration, hard to rotate.
-- Why rejected: contradicts self-service worker setup and least privilege.
+- **Mutual TLS:** distributing certificates to every machine is laborious.
+- **OAuth or OpenID Connect:** needs an identity provider; disproportionate.
+- **Shared storage credentials:** broad access, and hard to rotate.
 
 ## Consequences
 
-**What we gain:**
-- Encrypted transport, role-based access, and no storage credentials outside
-  the orchestrator and preprocessor.
-
-**What we pay for it:**
-- Manual token management; no per-user identity.
-- Presigned URL lifetime must cover the longest transfer.
-- The object store must be reachable from client and worker machines, not
-  only from the orchestrator.
-
-**Risks / to revisit later:**
-- A development setup may run without authentication; state this in the
-  README.
+- Gain: encrypted traffic, least privilege, and revocation per identity.
+- Cost: manual token management; the object store must be reachable from
+  clients and workers. Running without TLS and tokens is allowed only for
+  local development, must be switched on explicitly, and is logged at
+  start-up.
 
 ## Confirmation
 
-Try to register a worker with no token and with a `client` token; both must
-fail. Verify that a presigned URL stops working after it expires and that it
-cannot be used for another object. Download a presigned URL from a client
-machine (not the server) to confirm that the signed host name is reachable.
+Negative tests, all rejected: no token, a wrong role, a revoked token, a
+report for another worker's attempt, another client's job, an expired URL,
+and a URL used for another object. A presigned URL downloads from a client
+machine, which proves that it was signed for the external host name and not
+the internal one.

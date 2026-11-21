@@ -2,66 +2,42 @@
 
 - **Status:** Accepted
 - **Date:** 2026-11-21
-- **Related:** 0002, 0003, 0011, 0013, 0014
+- **Related:** 0011, 0013, 0014, 0018, 0021
 
 ## Context
 
-The VRP solver uses an island model: each worker evolves its own population
-and occasionally exchanges its best solutions with the others. A migrant is
-a single solution (a permutation of customers, a few kilobytes) exchanged
-rarely (every N iterations). Workers should not need to know how many peers
-exist. Exchange of the distance matrix is a different problem and is handled
-in 0011.
-
-## Decision drivers
-
-- Migration payloads are small and infrequent.
-- Islands may be lost during a run (0014) without failing the job.
-- No peer discovery or fixed membership.
+Islands exchange their best solutions (migrants: giant tours of about 20 KB
+at 5,000 customers) every few iterations. Islands can be lost during a run,
+and workers should not need to know their peers.
 
 ## Decision
 
-Workers push their best solutions to a per-job migrant pool held in memory by
-the orchestrator and pull random migrants from that pool when they are ready.
-There is no direct worker-to-worker migration traffic.
+Islands push migrants to a per-job pool held in the orchestrator's memory,
+and pull random migrants from it when they are ready. A receiving island
+checks that a migrant visits every customer exactly once and recomputes its
+cost from its own matrix; it drops invalid migrants. The pool accepts
+migrants only from the islands currently registered for the job (0021).
 
 ## Alternatives considered
 
-### Option A: Direct peer-to-peer exchange (NCCL / MPI)
-- Pros: lowest latency, orchestrator not involved.
-- Cons: requires fixed membership and peer discovery; a dying participant can
-  stall or break collective operations.
-- Why rejected: fragile with dynamic membership, and the payloads are small.
-
-### Option B: Orchestrator broadcast to all workers
-- Pros: simple mental model.
-- Cons: N-squared message fan-out; push semantics conflict with 0002.
-- Why rejected: a pull-based pool is cheaper.
-
-### Option C: Persist the migrant pool in the state database
-- Pros: the pool survives an orchestrator restart.
-- Cons: constant write load for data that is expendable by design.
-- Why rejected: losing the pool only means islands evolve alone for a while
-  (see 0014). Each island's best solution *is* persisted, but at a much
-  lower rate and for recovery, not for migration (0014).
+- **Peer-to-peer exchange (NCCL, MPI):** needs fixed membership, and a dying
+  peer stalls collective operations.
+- **Broadcast by the orchestrator:** islands run at different speeds, so
+  pushed migrants arrive when the receiver is not ready for them.
+- **A persisted pool:** one write per migrant for expendable data; recovery
+  needs only each island's best solution, which 0014 stores.
 
 ## Consequences
 
-**What we gain:**
-- Workers do not know about each other; islands can leave during a run
-  without affecting the others (the group is not enlarged, see 0013).
-- Graceful degradation: without the pool, islands keep evolving independently.
-
-**What we pay for it:**
-- The orchestrator is on the migration path and adds one hop of latency.
-- Pool size and replacement policy are the orchestrator's responsibility.
-
-**Risks / to revisit later:**
-- The pool is lost when the orchestrator restarts.
-- Migration frequency and payload size are assumptions; revisit if the
-  measured values are much larger.
+- Gain: islands are independent of each other and keep evolving if the pool
+  is lost.
+- Cost: the orchestrator is on the migration path; the pool is lost on
+  restart.
+- Revisit: direct exchange, if the hop through the orchestrator dominates
+  iteration time.
 
 ## Confirmation
 
-Benchmark solution quality and time-to-target with migration enabled and
-disabled, and with the pool deliberately emptied mid-run.
+Benchmark with migration enabled, disabled, and with the pool emptied
+mid-run. Inject an invalid migrant, and one from an unknown island, and
+check that both are dropped.

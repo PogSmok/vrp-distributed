@@ -6,46 +6,22 @@
 
 ## Context
 
-What problem are you solving? Which constraints apply? (2-5 sentences,
-no solution yet.)
-
-## Decision drivers
-
-- The forces and requirements that matter most for this choice.
-- Prefer measurable ones; see `docs/quality-attributes.md`.
+The problem and the constraints that matter, in one to three sentences.
 
 ## Decision
 
-What you chose. One or two sentences, in the present tense:
-"We use X because ..."
+What we do, in the present tense. A few sentences or a short list.
 
 ## Alternatives considered
 
-List the real alternatives, usually at least two: choices a reasonable
-engineer could make, not straw men or filler.
-
-### Option A: name
-- Pros:
-- Cons:
-- Why rejected:
-
-### Option B: name
-- Pros:
-- Cons:
-- Why rejected:
+- **Option name:** why it was rejected, in one line.
 
 ## Consequences
 
-**What we gain:**
-- ...
-
-**What we pay for it:**
-- ...
-
-**Risks / to revisit later:**
-- ...
+- Gain: what we get.
+- Cost: what we pay.
+- Revisit: (optional) when to reconsider.
 
 ## Confirmation
 
-How will we check that the decision works? A test, a measurement or a
-review check, ideally something that can be repeated.
+How we check that the decision works: a test, a measurement or a review.

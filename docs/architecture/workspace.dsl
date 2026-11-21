@@ -8,13 +8,33 @@ workspace "vrp-distributed" "Distributed GPU solver for the Vehicle Routing Prob
 
         vrp = softwareSystem "VRP-Distributed" "Distributed GPU solver for the Vehicle Routing Problem." {
             app          = container "Client Application" "Submits problems, shows routes and convergence." "Python / Streamlit"
-            orchestrator = container "Orchestrator" "Schedules jobs on workers; owns job state and the migrant pool." "C++ / gRPC"
-            worker       = container "Worker" "Computes distances and runs the solver on one GPU." "C++ / CUDA"
+            orchestrator = container "Orchestrator" "Schedules jobs on workers; owns job state and the migrant pool." "Python / grpcio (asyncio)" {
+                clientApi   = component "Client API" "Submits and cancels jobs, answers progress polls, returns result URLs; only for the caller's own jobs; limits poll rate." "gRPC service"
+                workerApi   = component "Worker API" "One bidirectional session stream per worker; a new session replaces the old one." "gRPC service"
+                adminApi    = component "Admin API" "Registers graph versions." "gRPC service"
+                auth        = component "Auth" "Wraps all three APIs; checks named tokens and roles from the token file; identifies the caller." "gRPC interceptor"
+                scheduler   = component "Scheduler" "Job phases, leases, island groups. Decides every database write; applies it after commit." "asyncio event loop"
+                registry    = component "Worker Registry" "Connected workers, their send queues and metrics addresses; serves worker discovery to Prometheus." "In memory, HTTP SD endpoint"
+                migrantPool = component "Migrant Pool" "Migrants of registered islands per job; bypasses the Scheduler's queue." "In memory"
+                catalogue   = component "Graph Catalogue" "Registered graph versions." "In memory, owned by Scheduler"
+                artifacts   = component "Artifact Manager" "Signs presigned URLs, checks uploads, verifies graphs, deletes expired objects." "S3 client"
+                repository  = component "State Repository" "All SQL; commits transitions in order, one transaction each; applies schema migrations at start-up." "psycopg 3, commits outside the loop"
+            }
+            worker       = container "Worker" "Computes distances and runs the solver on one GPU." "C++ / CUDA" {
+                session       = component "Session Client" "Registration, stream, heartbeats, reconnects, fresh URLs; resends unconfirmed reports." "gRPC client, session thread"
+                runner        = component "Task Runner" "Runs one task at a time in short GPU steps; handles cancel." "Compute thread"
+                graphCache    = component "Graph Cache" "Verified graphs on disk; one graph resident on the GPU."
+                transfer      = component "Object Transfer" "Presigned GET and PUT with retries." "libcurl"
+                snapper       = component "Snapper" "Snaps coordinates to graph nodes." "vrp-core / C++"
+                distance      = component "Distance Engine" "Many-source shortest paths." "vrp-core / CUDA"
+                solver        = component "Island Solver" "Populations, local search, migrant import and export." "vrp-core / CUDA"
+                resultBuilder = component "Result Builder" "Routes legs on the CPU, checks the cost, builds polylines and the result artifact." "vrp-core / C++"
+            }
             preprocessor = container "Graph Preprocessor" "Turns OSM extracts into versioned graphs." "Python CLI / pyrosm"
             objectStore  = container "Object Store" "Graphs, distance matrices and results." "MinIO (S3)" {
                 tags "Database"
             }
-            stateDb      = container "Job State DB" "Jobs, tasks, leases and graph catalogue." "PostgreSQL" {
+            stateDb      = container "Job State DB" "Jobs, tasks, assignments, graph catalogue." "PostgreSQL" {
                 tags "Database"
             }
         }
@@ -41,37 +61,77 @@ workspace "vrp-distributed" "Distributed GPU solver for the Vehicle Routing Prob
 
         // --- CONTAINER relations ---
         user -> vrp.app
-        vrp.app -> vrp.orchestrator "Submits jobs, gets progress" "gRPC/TLS"
+        vrp.app -> vrp.orchestrator "Submits jobs, polls progress" "gRPC/TLS"
         vrp.app -> vrp.objectStore "Downloads results" "HTTPS, presigned"
         vrp.orchestrator -> vrp.stateDb
         vrp.orchestrator -> vrp.objectStore "Manages artifacts" "S3 API"
-        vrp.worker -> vrp.orchestrator "Gets tasks, reports progress" "gRPC/TLS"
+        vrp.worker -> vrp.orchestrator "Gets tasks, reports progress, sends logs" "gRPC/TLS"
         vrp.worker -> vrp.objectStore "Reads graphs, writes results" "HTTPS, presigned"
         vrp.preprocessor -> vrp.objectStore
         vrp.preprocessor -> vrp.orchestrator "Registers graph versions" "gRPC/TLS"
         vrp.preprocessor -> osm
-        prometheus -> vrp.orchestrator
+        prometheus -> vrp.orchestrator "Scrapes metrics, discovers workers" "HTTP"
         prometheus -> vrp.stateDb
         prometheus -> vrp.objectStore
         prometheus -> vrp.worker
         admin -> vrp.preprocessor
 
+        // --- COMPONENT relations: Orchestrator ---
+        vrp.app -> vrp.orchestrator.clientApi "Submits, cancels and polls jobs" "gRPC/TLS"
+        vrp.preprocessor -> vrp.orchestrator.adminApi "Registers graph versions" "gRPC/TLS"
+        prometheus -> vrp.orchestrator.registry "Discovers worker metrics endpoints" "HTTP"
+        vrp.orchestrator.clientApi -> vrp.orchestrator.auth "Checks token and role"
+        vrp.orchestrator.workerApi -> vrp.orchestrator.auth "Checks token; gets the worker name for the session"
+        vrp.orchestrator.adminApi -> vrp.orchestrator.auth "Checks admin token"
+        vrp.orchestrator.clientApi -> vrp.orchestrator.scheduler "Posts commands and progress queries"
+        vrp.orchestrator.workerApi -> vrp.orchestrator.scheduler "Posts worker events"
+        vrp.orchestrator.workerApi -> vrp.orchestrator.registry "Opens and closes sessions" {
+            tags "LabelNearStart"
+        }
+        vrp.orchestrator.workerApi -> vrp.orchestrator.migrantPool "Pushes and pulls migrants"
+        vrp.orchestrator.adminApi -> vrp.orchestrator.artifacts "Verifies uploaded graphs"
+        vrp.orchestrator.adminApi -> vrp.orchestrator.scheduler "Posts graph registrations"
+        vrp.orchestrator.scheduler -> vrp.orchestrator.registry "Queues assignments"
+        vrp.orchestrator.scheduler -> vrp.orchestrator.migrantPool "Manages pools and islands"
+        vrp.orchestrator.scheduler -> vrp.orchestrator.catalogue
+        vrp.orchestrator.scheduler -> vrp.orchestrator.artifacts "Signs URLs, requests upload checks and deletions"
+        vrp.orchestrator.artifacts -> vrp.orchestrator.scheduler "Posts check and deletion results"
+        vrp.orchestrator.scheduler -> vrp.orchestrator.repository "Hands over transitions"
+        vrp.orchestrator.repository -> vrp.orchestrator.scheduler "Posts commit results"
+        vrp.orchestrator.repository -> vrp.stateDb "" "SQL"
+        vrp.orchestrator.artifacts -> vrp.objectStore "" "S3 API"
+
+        // --- COMPONENT relations: Worker ---
+        vrp.worker.session -> vrp.orchestrator.workerApi "Session stream" "gRPC/TLS"
+        vrp.worker.session -> vrp.worker.runner "Hands over assignments and cancels"
+        vrp.worker.runner -> vrp.worker.session "Reports progress, migrants, results, log lines"
+        vrp.worker.runner -> vrp.worker.graphCache "Ensures graph is loaded"
+        vrp.worker.runner -> vrp.worker.transfer "Matrix rows and results"
+        vrp.worker.graphCache -> vrp.worker.transfer "Downloads graphs"
+        vrp.worker.transfer -> vrp.objectStore "" "HTTPS, presigned"
+        vrp.worker.runner -> vrp.worker.snapper "PREPARE"
+        vrp.worker.runner -> vrp.worker.distance "DISTANCE"
+        vrp.worker.runner -> vrp.worker.solver "SOLVE"
+        vrp.worker.runner -> vrp.worker.resultBuilder "FINALIZE"
+
         // --- DEPLOYMENT ---
         deploymentEnvironment "Lab" {
             deploymentNode "Server PC" "Control plane, storage, monitoring." "Linux or Windows" {
                 containerInstance vrp.orchestrator
-                containerInstance vrp.stateDb
-                containerInstance vrp.objectStore
-                softwareSystemInstance prometheus
-                softwareSystemInstance grafana
+                deploymentNode "Docker Compose" "Third-party services from one Compose file; data in volumes on the server's disk." "Docker" {
+                    containerInstance vrp.stateDb
+                    containerInstance vrp.objectStore
+                    softwareSystemInstance prometheus
+                    softwareSystemInstance grafana
+                }
             }
-            deploymentNode "GPU Worker PC" "One NVIDIA GPU, same LAN as the server." "Windows or Linux" "" "1..8" {
+            deploymentNode "GPU Worker PC" "One NVIDIA GPU, same LAN as the server. The worker runs as a service." "Windows or Linux" "" "1..8" {
                 containerInstance vrp.worker
             }
             deploymentNode "Dispatcher PC" "Reaches the orchestrator and object store." "Windows or Linux" {
                 containerInstance vrp.app
             }
-            deploymentNode "Admin Workstation" "" "Windows or Linux" {
+            deploymentNode "Admin Workstation" "Graph imports; keeps the nightly database backups." "Windows or Linux" {
                 containerInstance vrp.preprocessor
             }
         }
@@ -85,6 +145,14 @@ workspace "vrp-distributed" "Distributed GPU solver for the Vehicle Routing Prob
         }
 
         container vrp "Containers" {
+            include *
+        }
+
+        component vrp.orchestrator "OrchestratorComponents" {
+            include *
+        }
+
+        component vrp.worker "WorkerComponents" {
             include *
         }
 
@@ -102,6 +170,9 @@ workspace "vrp-distributed" "Distributed GPU solver for the Vehicle Routing Prob
             }
             element "Database" {
                 shape cylinder
+            }
+            relationship "LabelNearStart" {
+                position 25
             }
         }
     }

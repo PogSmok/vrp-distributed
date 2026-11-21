@@ -1,71 +1,58 @@
-# 0010. Monitoring with Prometheus and Grafana
+# 0010. Monitoring with Prometheus and Grafana; logs collected by the orchestrator
 
 - **Status:** Accepted
 - **Date:** 2026-11-21
-- **Related:** 0002, 0003
+- **Related:** 0002, 0003, 0009, 0014, 0019, 0024
 
 ## Context
 
-Operators need to observe system health: GPU utilisation, queue length, live
-workers, take-over of stalled tasks, database and storage status. This is a
-different audience and lifecycle from the per-job progress users see in the
-client application. Monitoring must keep running when no client is connected
-and must retain history.
-
-## Decision drivers
-
-- Independent of the observed system and of connected clients.
-- History and alerting with little custom work.
-- Metrics usable as benchmark evidence.
+Operators need system health with history (GPU use, queue length, workers,
+database and storage), whether or not a client is connected. They also need
+to follow one job across the orchestrator and up to 8 workers.
 
 ## Decision
 
-We use Prometheus (collection and storage) and Grafana (dashboards). Our
-processes expose `/metrics` endpoints, or standard exporters are used (for
-PostgreSQL, GPUs and the object store), and Prometheus scrapes them directly.
-The PostgreSQL exporter uses a read-only monitoring role (0003).
-Workers are on the same network as Prometheus. Per-job telemetry stays in the
-client application.
-
-Modelling note: Prometheus and Grafana are drawn as external systems in the
-architecture model because we do not build them. We do deploy them ourselves;
-the deployment view shows that.
+- **Metrics.** Prometheus scrapes `/metrics` from our processes and from
+  standard exporters. The orchestrator lists the connected workers on an
+  `http_sd_configs` endpoint, so a new worker is scraped without changing
+  any configuration. Grafana shows the dashboards. The model draws
+  Prometheus and Grafana as external systems because we do not build them.
+- **Logs.** Every process writes JSON-line logs tagged with job, task,
+  attempt and worker. Workers send their lines in batches to the
+  orchestrator over the session stream they already have (0002, 0024). The
+  orchestrator writes them into its own log, which it rotates and keeps for
+  30 days. Each worker also keeps a local log file, so lines that were never
+  sent (for example before a crash) are not lost. Following a job means
+  filtering the orchestrator's log by job ID.
 
 ## Alternatives considered
 
-### Option A: Build monitoring into the client application
-- Pros: no extra tools.
-- Cons: only runs while a client is open; no history or alerting; exposes
-  internal cluster data to every client.
-- Why rejected: wrong audience and lifecycle.
-
-### Option B: OpenTelemetry collectors with push-based export
-- Pros: vendor-neutral, supports traces as well as metrics, works across
-  NAT because workers push outward.
-- Cons: one more component per worker host; more configuration.
-- Why rejected: workers share a network with Prometheus, so scraping is
-  simpler. Revisit if workers must run behind NAT.
-
-### Option C: Build a custom monitoring service
-- Pros: tailored to our metrics.
-- Cons: reimplements storage, querying and dashboards.
-- Why rejected: the effort does not demonstrate the project's goals.
+- **Monitoring inside the client:** runs only while a client is open; the
+  wrong audience.
+- **OpenTelemetry push:** more configuration than scraping; revisit if
+  workers ever run behind NAT.
+- **Loki, with a log agent on every machine:** a log server and up to 9
+  agents to install, plus another unauthenticated port, for a lab of 8
+  workers; revisit if the orchestrator's log becomes hard to search.
+- **Log files on each machine only:** following one job would mean logging
+  in to every machine.
 
 ## Consequences
 
-**What we gain:**
-- Independent observability, history and alerting with little work.
-
-**What we pay for it:**
-- Instrumentation in C++ and extra services to run.
-- GPU exporters differ by operating system and must be chosen with care.
-- Scraping requires workers to be directly reachable from Prometheus, so
-  workers behind NAT are not supported for metrics.
-
-**Risks / to revisit later:**
-- Restrict dashboard access to administrators.
+- Gain: history and alerting with little work; one file holds everything a
+  job did. Logs travel over the authenticated TLS stream, and no extra
+  service is needed.
+- Cost: instrumentation; log lines add traffic on the session stream;
+  workers behind NAT cannot be scraped. Dashboards must be restricted to
+  administrators.
+- Cost: metric scrapes are plain, unauthenticated HTTP, so they are
+  protected only by the firewall, which limits them to the lab network
+  (0019). This is an accepted risk.
 
 ## Confirmation
 
-Every scrape target (orchestrator, workers, PostgreSQL exporter, object
-store) shows as up in Prometheus, and the key dashboards load.
+Every scrape target is up, and a new worker is scraped without
+configuration changes. Kill a worker during a job: filtering the
+orchestrator's log by the job ID returns lines from the orchestrator and
+from every worker that ran a task, and the killed worker's last lines are
+in its local file.

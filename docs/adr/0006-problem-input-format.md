@@ -2,77 +2,42 @@
 
 - **Status:** Accepted
 - **Date:** 2026-11-21
-- **Related:** 0008, 0013, 0015
+- **Related:** 0008, 0012, 0013, 0015, 0020
 
 ## Context
 
-Users submit VRP problems through the client application. The format defines
-what a problem looks like: depot, customers with locations and demands, and
-vehicle count and capacity. The main purpose of the project is to measure how
-the solver scales with the number of GPUs, so problems must be easy to
-generate, reproduce and inspect. Scaling is measured against our own
-single-GPU runs. That alone cannot show whether the solver is good: a weak
-solver can also scale well, so solution quality needs an external reference.
-
-## Decision drivers
-
-- Human-readable, easy-to-debug problem files.
-- Reproducible generation of benchmark problems.
-- Node IDs are only valid within one graph version (0015), so the input must
-  not depend on internal IDs.
-- Solver quality must be comparable with published results.
+Problems (a depot, customers with locations and demands, a vehicle count
+and capacity) must be easy to generate, reproduce and inspect, and must not
+depend on graph node IDs (0015). Scaling measured against our own runs says
+nothing about quality, so quality needs an external reference.
 
 ## Decision
 
-Problems are described in a custom JSON format with an explicit
-`schema_version` field. Customer locations are given as latitude/longitude;
-they are snapped to the nearest node of the job's pinned graph version in the
-PREPARE phase (0013). A customer further than a configured maximum snapping
-distance from any node makes the job fail with an explicit error listing
-those customers. The client validates the JSON and converts it into the
-Protobuf problem message of the gRPC contract (0008). A generator script
-produces problems from a fixed random seed, a region and a number of
-customers.
-
-Solver quality is validated separately from the job pipeline: CVRPLIB
-instances are given to the solver directly as explicit distance matrices,
-and the results are compared with the best known solutions.
+Problems are JSON files with a `schema_version`, latitude and longitude for
+each stop, and the edge cost to optimise (`length` or `time`, 0020). The
+client validates a problem and converts it to Protobuf. The orchestrator
+rejects problems that cannot be feasible: a customer's demand above the
+vehicle capacity, or total demand above the fleet's capacity. PREPARE snaps
+stops to the job's graph, and a customer too far from any road fails the job
+with a list of such customers. A generator produces problems from a seed, a
+region and a customer count. Solver quality is validated separately, on
+CVRPLIB instances given as explicit matrices.
 
 ## Alternatives considered
 
-### Option A: Standard benchmark format (TSPLIB-like, for example CVRPLIB) as the job input
-- Pros: allows comparing solution quality with published results.
-- Cons: the instances use planar coordinates and Euclidean distances, so they
-  cannot be placed on a road graph.
-- Why rejected as the job input: jobs must run on road-network distances.
-  CVRPLIB is still used for solver validation, where the solver only needs a
-  distance matrix (see Decision).
-
-### Option B: Protobuf only, no file format
-- Pros: one representation everywhere.
-- Cons: binary files cannot be read or edited by hand.
-- Why rejected: human-readable files are worth the small conversion step.
+- **CVRPLIB as the job input:** its planar instances cannot be placed on
+  roads; it is used for validation only.
+- **Protobuf files only:** not human-readable.
 
 ## Consequences
 
-**What we gain:**
-- Easy debugging and reproducible benchmarks through seeded generation.
-- Solver quality is checked against published results, independently of
-  the road graph.
-
-**What we pay for it:**
-- Published results validate the solver only, not the road-network distances.
-- A JSON schema and validator to maintain; the format must be versioned.
-- A CVRPLIB reader for the solver's validation harness.
-
-**Risks / to revisit later:**
-- JSON is verbose for very large problems; revisit if file size or parsing
-  time becomes an issue.
+- Gain: easy debugging, reproducible benchmarks, and quality comparable with
+  published results.
+- Cost: a schema and validator to version; CVRPLIB validates the solver, not
+  the road distances.
 
 ## Confirmation
 
-Generate the same problem twice with the same seed and verify that the files
-are identical. Submit a generated problem and check that the PREPARE phase
-produces the same node assignment on every run. Submit a customer far from
-any road and check that the job fails with an explicit error. Run a set of
-CVRPLIB instances and report the gap to the best known solutions.
+The same seed gives identical files, and the same problem snaps the same
+way on every run. A customer far from any road, and a problem with too much
+demand, are rejected with explicit errors. CVRPLIB gaps are reported.

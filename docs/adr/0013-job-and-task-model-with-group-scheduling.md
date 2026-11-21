@@ -2,79 +2,65 @@
 
 - **Status:** Accepted
 - **Date:** 2026-11-21
-- **Related:** 0001, 0002, 0004, 0011, 0014
+- **Related:** 0001, 0004, 0009, 0011, 0014, 0016, 0018, 0021, 0025
 
 ## Context
 
-A job is not a single unit of work consumed by one worker. It has phases with
-different scheduling needs: independent tasks (distance computation) and a
-group of islands that must run at the same time and exchange migrants.
-
-## Decision drivers
-
-- Islands must start together to exchange migrants.
-- Distance tasks are independent and idempotent.
-- A worker's GPU runs one task at a time.
-- Every transition must be recoverable from the state store (0001).
+A job has phases with different scheduling needs: independent distance
+tasks, and a group of islands that must run at the same time. Every
+assignment must survive a restart, but heartbeats must not cost database
+writes.
 
 ## Decision
 
-A job moves through four phases, driven by the orchestrator:
-
-1. **PREPARE:** one task snaps customer coordinates to graph nodes of the
-   job's pinned graph version (0015).
-2. **DISTANCE:** N independent tasks, one per chunk of source customers (0011).
-3. **SOLVE:** one group of K islands, assigned only when K workers are idle.
-   If fewer than K are idle after a wait timeout, the job starts with the
-   number available. Islands share a job-scoped migrant pool (0004). The
-   group is fixed once started: lost islands are not replaced and workers
-   that become idle later do not join it, so benchmark runs stay comparable.
-   The phase ends when the job's time limit is reached or the best cost has
-   not improved for a configured period, whichever comes first; the
-   orchestrator then tells the islands to stop.
-4. **FINALIZE:** the best solution is selected and a result artifact is
-   produced (0016).
-
-Tasks are `PENDING`, `LEASED`, `RUNNING`, `DONE` or `FAILED`. A task is
-leased to a worker with an expiry that heartbeats renew; an expired lease
-returns the task to `PENDING`, up to a maximum number of attempts. Every
-lease carries an attempt number that increases on each reassignment. The
-orchestrator accepts heartbeats, completions and uploads only for the
-current attempt, so a worker whose lease has already expired cannot overwrite
-the result of its replacement. Jobs are scheduled first-in, first-out.
+- **Phases.**
+  1. PREPARE: one task snaps stops to the job's pinned graph.
+  2. DISTANCE: one task per chunk of sources.
+  3. SOLVE: K leased tasks, each running P islands on its GPU. K and P are
+     job parameters; K defaults to the number of registered workers and P
+     to 1. A 1-GPU baseline is an ordinary job with K = 1, on the same code
+     path. Tasks start when K workers are idle (or with fewer after a wait
+     timeout), and the group is fixed once it starts. SOLVE ends at the
+     time limit, or when the best cost has not improved for a set period.
+     The islands then send their final best solutions, which are committed
+     before FINALIZE.
+  4. FINALIZE: the best of every island's last saved solution, including
+     lost islands, is checked, routed and stored (0016, 0025). Islands
+     report only feasible solutions (0018). If none has found one, the job
+     ends `FAILED` with "no feasible solution found": an expected outcome,
+     not a bug.
+- **Tasks and leases.** A task is `PENDING`, `LEASED`, `DONE` or `FAILED`.
+  A lease is one attempt by one worker, identified by its token name (0009).
+  The assignment (worker, attempt, build version, GPU) is stored. The
+  deadline is kept only in memory, and heartbeats extend it.
+- **Expiry.** An expired task returns to `PENDING` with the next attempt
+  number, up to a limit, after which it fails the job. An expired solve
+  task fails only itself and its islands.
+- **Reports.** Only the worker assigned to the current attempt can report.
+  A task with uploads becomes `DONE` only after the upload check (0021).
+- **Jobs.** Jobs run first-in, first-out. A client can cancel its own job:
+  tasks stop at once, FINALIZE does not run, and the job ends `CANCELLED`
+  without a result.
 
 ## Alternatives considered
 
-### Option A: Treat every island as an independent queue task
-- Pros: one uniform mechanism for all work.
-- Cons: nothing ensures that islands run concurrently, so migration may find
-  an empty pool or finished peers.
-- Why rejected: concurrency of islands is a requirement.
-
-### Option B: A coordinator worker spawns and manages its peers
-- Pros: scheduling logic for a job lives in one place.
-- Cons: moves scheduling into workers and bypasses the orchestrator's state.
-- Why rejected: scheduling and recovery belong with the orchestrator.
+- **Islands as independent queue tasks:** nothing would make them run at
+  the same time.
+- **A coordinator worker that manages its peers:** moves scheduling out of
+  the orchestrator.
 
 ## Consequences
 
-**What we gain:**
-- Clear phase boundaries, idempotent retries for distance tasks, and
-  explicit group start.
-
-**What we pay for it:**
-- The scheduler is more complex than a plain queue, and head-of-line
-  blocking is possible with first-in, first-out scheduling.
-
-**Risks / to revisit later:**
-- Wait timeout, group-size policy, stopping criteria and priorities need
-  tuning.
-- Replacing lost islands with newly idle workers could improve robustness;
-  revisit if long jobs lose many islands.
+- Gain: clear phases, idempotent retries and an explicit group start.
+- Cost: more complex than a plain queue; first-in, first-out scheduling can
+  block the queue behind one job.
+- Revisit: group-size policy and stopping criteria; replacing lost islands.
 
 ## Confirmation
 
-With three workers, a job requesting three islands starts the solve phase
-only when all three are idle. Killing a worker during the distance phase
-still lets the job finish. A completion sent with an old attempt number is
-rejected.
+The solve phase starts only when K workers are idle. Killing a worker
+during DISTANCE still lets the job finish. Reports for an old attempt, or
+from another worker, are rejected. Heartbeats cause no database writes.
+Cancelling a job frees its workers within seconds. A problem that passes
+the submission checks, but whose demands cannot be packed into the fleet,
+ends with "no feasible solution found".

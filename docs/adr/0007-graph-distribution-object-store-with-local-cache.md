@@ -6,63 +6,38 @@
 
 ## Context
 
-Workers need graph files on their own machines before they can load them
-into GPU memory. Which part of the graph each worker holds is decided in
-0011; this ADR decides how the files get there. Graph files are large and
-must not travel through the orchestrator. A new worker must be able to join
-without manual file copying or configuration.
-
-## Decision drivers
-
-- New workers join without manual setup.
-- The orchestrator handles small control messages only.
-- Workers must not hold object-store credentials (0009).
+Workers need graph files on their own disk before loading them into GPU
+memory. The files are large and must not pass through the orchestrator, and
+a new worker must join without manual setup or storage credentials.
 
 ## Decision
 
-The preprocessor uploads each graph version (0015) to the object store
-(MinIO, S3-compatible). When the orchestrator assigns work, it includes the
-graph version and a presigned download URL. The worker downloads the graph
-if it is not in its local cache (verified by checksum) and loads it into GPU
-memory. Workers report their GPU memory at registration, and the orchestrator
-does not assign a graph that does not fit.
+The preprocessor uploads each graph version to MinIO (S3-compatible). An
+assignment carries the graph version and a presigned download URL, and the
+worker downloads the graph if its checksum-verified cache does not have it.
+The orchestrator assigns a task only if the graph, the job's matrix and the
+task's working memory together fit in the GPU memory the worker reported.
+It rejects at submission a problem that would fit on none of the registered
+workers.
 
 ## Alternatives considered
 
-### Option A: Local files copied to each machine by hand
-- Pros: no extra service.
-- Cons: a new worker cannot work until someone configures it.
-- Why rejected: contradicts self-service worker registration.
-
-### Option B: Distribute through the orchestrator
-- Pros: no extra service.
-- Cons: large transfers on the control path.
-- Why rejected: the orchestrator should handle small control messages only.
-
-### Option C: Shared network file system (SMB / NFS)
-- Pros: simple semantics.
-- Cons: awkward on mixed Windows and Linux machines; harder to monitor; every
-  worker needs access rights to the share.
-- Why rejected: object storage with presigned URLs is more portable and
-  needs no credentials on workers.
+- **Copying files by hand:** a new worker cannot work until someone sets it
+  up.
+- **Through the orchestrator:** large transfers on the control path.
+- **A network share (SMB, NFS):** awkward across Windows and Linux, and every
+  worker needs access to the share.
 
 ## Consequences
 
-**What we gain:**
-- Workers join without manual setup; graph versions are explicit.
-- Plain HTTPS download with presigned URLs, so no S3 SDK is needed in C++
-  (for example, libcurl is enough).
-
-**What we pay for it:**
-- One more service to run and monitor; a fresh worker downloads the graph on
-  first use.
-
-**Risks / to revisit later:**
-- Check MinIO's current licence (AGPL) and project status. The S3 API keeps
-  it replaceable by compatible stores.
+- Gain: new workers need no setup; plain HTTPS downloads (libcurl, no S3
+  SDK in C++).
+- Cost: one more service; a fresh worker downloads the graph on first use.
+- Revisit: MinIO is AGPL and its community edition is less maintained; any
+  S3-compatible store can replace it.
 
 ## Confirmation
 
-Start a new worker with no pre-copied files and verify that it runs a job.
-Corrupt a cached graph file and verify that the checksum triggers a
-re-download.
+A fresh worker with no files runs a job. A corrupted cached graph is
+downloaded again. A problem too large for every registered worker's GPU is
+rejected at submission.
