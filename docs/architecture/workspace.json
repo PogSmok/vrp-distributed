@@ -1,0 +1,761 @@
+{
+  "configuration" : { },
+  "description" : "Distributed GPU solver for the Vehicle Routing Problem",
+  "documentation" : { },
+  "id" : 1,
+  "lastModifiedDate" : "2026-11-21T15:55:31Z",
+  "model" : {
+    "deploymentNodes" : [ {
+      "containerInstances" : [ {
+        "containerId" : "5",
+        "environment" : "Lab",
+        "id" : "35",
+        "instanceId" : 1,
+        "properties" : {
+          "structurizr.dsl.identifier" : "584f2655-ff05-464c-a6f2-75b20bb7b473.84111055-cdbc-436c-b8bc-cc40ab2889c1.2f50f4d5-4263-4b19-a97a-6d6a222aa643"
+        },
+        "relationships" : [ {
+          "destinationId" : "36",
+          "id" : "37",
+          "linkedRelationshipId" : "21",
+          "sourceId" : "35"
+        }, {
+          "description" : "Manages artifacts",
+          "destinationId" : "38",
+          "id" : "39",
+          "linkedRelationshipId" : "22",
+          "sourceId" : "35",
+          "technology" : "S3 API"
+        } ],
+        "tags" : "Container Instance"
+      }, {
+        "containerId" : "9",
+        "environment" : "Lab",
+        "id" : "36",
+        "instanceId" : 1,
+        "properties" : {
+          "structurizr.dsl.identifier" : "584f2655-ff05-464c-a6f2-75b20bb7b473.84111055-cdbc-436c-b8bc-cc40ab2889c1.f5068af2-e0ba-4723-9577-0d712875df20"
+        },
+        "tags" : "Container Instance"
+      }, {
+        "containerId" : "8",
+        "environment" : "Lab",
+        "id" : "38",
+        "instanceId" : 1,
+        "properties" : {
+          "structurizr.dsl.identifier" : "584f2655-ff05-464c-a6f2-75b20bb7b473.84111055-cdbc-436c-b8bc-cc40ab2889c1.abcf9b77-a6ee-40a3-8489-06c867fd63c0"
+        },
+        "tags" : "Container Instance"
+      } ],
+      "description" : "Control plane, storage, monitoring.",
+      "environment" : "Lab",
+      "id" : "34",
+      "instances" : "1",
+      "name" : "Server PC",
+      "properties" : {
+        "structurizr.dsl.identifier" : "584f2655-ff05-464c-a6f2-75b20bb7b473.84111055-cdbc-436c-b8bc-cc40ab2889c1"
+      },
+      "softwareSystemInstances" : [ {
+        "environment" : "Lab",
+        "id" : "40",
+        "instanceId" : 1,
+        "properties" : {
+          "structurizr.dsl.identifier" : "584f2655-ff05-464c-a6f2-75b20bb7b473.84111055-cdbc-436c-b8bc-cc40ab2889c1.e820ee4e-abac-4c11-a12a-ac27d7e513ee"
+        },
+        "relationships" : [ {
+          "destinationId" : "35",
+          "id" : "41",
+          "linkedRelationshipId" : "28",
+          "sourceId" : "40"
+        }, {
+          "destinationId" : "36",
+          "id" : "42",
+          "linkedRelationshipId" : "29",
+          "sourceId" : "40"
+        }, {
+          "destinationId" : "38",
+          "id" : "43",
+          "linkedRelationshipId" : "30",
+          "sourceId" : "40"
+        }, {
+          "destinationId" : "47",
+          "id" : "50",
+          "linkedRelationshipId" : "31",
+          "sourceId" : "40"
+        } ],
+        "softwareSystemId" : "11",
+        "tags" : "Software System Instance"
+      }, {
+        "environment" : "Lab",
+        "id" : "44",
+        "instanceId" : 1,
+        "properties" : {
+          "structurizr.dsl.identifier" : "584f2655-ff05-464c-a6f2-75b20bb7b473.84111055-cdbc-436c-b8bc-cc40ab2889c1.b5e3768b-c3d7-439f-98c0-42bcc4fda451"
+        },
+        "relationships" : [ {
+          "destinationId" : "40",
+          "id" : "45",
+          "linkedRelationshipId" : "16",
+          "sourceId" : "44"
+        } ],
+        "softwareSystemId" : "12",
+        "tags" : "Software System Instance"
+      } ],
+      "tags" : "Element,Deployment Node",
+      "technology" : "Linux or Windows"
+    }, {
+      "containerInstances" : [ {
+        "containerId" : "6",
+        "environment" : "Lab",
+        "id" : "47",
+        "instanceId" : 1,
+        "properties" : {
+          "structurizr.dsl.identifier" : "584f2655-ff05-464c-a6f2-75b20bb7b473.3e0f67f3-1545-4f39-be29-630adecf51f5.a9a55537-71a0-4993-903d-8b60889b2b8d"
+        },
+        "relationships" : [ {
+          "description" : "Gets tasks, reports progress",
+          "destinationId" : "35",
+          "id" : "48",
+          "linkedRelationshipId" : "23",
+          "sourceId" : "47",
+          "technology" : "gRPC/TLS"
+        }, {
+          "description" : "Reads graphs, writes results",
+          "destinationId" : "38",
+          "id" : "49",
+          "linkedRelationshipId" : "24",
+          "sourceId" : "47",
+          "technology" : "HTTPS, presigned"
+        } ],
+        "tags" : "Container Instance"
+      } ],
+      "description" : "One NVIDIA GPU, same LAN as the server.",
+      "environment" : "Lab",
+      "id" : "46",
+      "instances" : "1..8",
+      "name" : "GPU Worker PC",
+      "properties" : {
+        "structurizr.dsl.identifier" : "584f2655-ff05-464c-a6f2-75b20bb7b473.3e0f67f3-1545-4f39-be29-630adecf51f5"
+      },
+      "tags" : "Element,Deployment Node,",
+      "technology" : "Windows or Linux"
+    }, {
+      "containerInstances" : [ {
+        "containerId" : "4",
+        "environment" : "Lab",
+        "id" : "52",
+        "instanceId" : 1,
+        "properties" : {
+          "structurizr.dsl.identifier" : "584f2655-ff05-464c-a6f2-75b20bb7b473.b9edcc55-7d0c-4cca-8bcb-13af95438cf2.0428c750-9e10-47d9-8d43-33e57735fcba"
+        },
+        "relationships" : [ {
+          "description" : "Submits jobs, gets progress",
+          "destinationId" : "35",
+          "id" : "53",
+          "linkedRelationshipId" : "19",
+          "sourceId" : "52",
+          "technology" : "gRPC/TLS"
+        }, {
+          "description" : "Downloads results",
+          "destinationId" : "38",
+          "id" : "54",
+          "linkedRelationshipId" : "20",
+          "sourceId" : "52",
+          "technology" : "HTTPS, presigned"
+        } ],
+        "tags" : "Container Instance"
+      } ],
+      "description" : "Reaches the orchestrator and object store.",
+      "environment" : "Lab",
+      "id" : "51",
+      "instances" : "1",
+      "name" : "Dispatcher PC",
+      "properties" : {
+        "structurizr.dsl.identifier" : "584f2655-ff05-464c-a6f2-75b20bb7b473.b9edcc55-7d0c-4cca-8bcb-13af95438cf2"
+      },
+      "tags" : "Element,Deployment Node",
+      "technology" : "Windows or Linux"
+    }, {
+      "containerInstances" : [ {
+        "containerId" : "7",
+        "environment" : "Lab",
+        "id" : "56",
+        "instanceId" : 1,
+        "properties" : {
+          "structurizr.dsl.identifier" : "584f2655-ff05-464c-a6f2-75b20bb7b473.200f7ba7-d243-4adc-8b7e-0693e68599df.6c664499-c62e-4986-a620-feeedda6d9e4"
+        },
+        "relationships" : [ {
+          "description" : "Registers graph versions",
+          "destinationId" : "35",
+          "id" : "57",
+          "linkedRelationshipId" : "26",
+          "sourceId" : "56",
+          "technology" : "gRPC/TLS"
+        }, {
+          "destinationId" : "38",
+          "id" : "58",
+          "linkedRelationshipId" : "25",
+          "sourceId" : "56"
+        } ],
+        "tags" : "Container Instance"
+      } ],
+      "environment" : "Lab",
+      "id" : "55",
+      "instances" : "1",
+      "name" : "Admin Workstation",
+      "properties" : {
+        "structurizr.dsl.identifier" : "584f2655-ff05-464c-a6f2-75b20bb7b473.200f7ba7-d243-4adc-8b7e-0693e68599df"
+      },
+      "tags" : "Element,Deployment Node",
+      "technology" : "Windows or Linux"
+    } ],
+    "people" : [ {
+      "description" : "Submits problems and reviews routes.",
+      "id" : "1",
+      "name" : "Dispatcher",
+      "properties" : {
+        "structurizr.dsl.identifier" : "user"
+      },
+      "relationships" : [ {
+        "destinationId" : "3",
+        "id" : "13",
+        "sourceId" : "1",
+        "tags" : "Relationship"
+      }, {
+        "destinationId" : "4",
+        "id" : "18",
+        "sourceId" : "1",
+        "tags" : "Relationship"
+      } ],
+      "tags" : "Element,Person"
+    }, {
+      "description" : "Runs the system and graph imports.",
+      "id" : "2",
+      "name" : "System Administrator",
+      "properties" : {
+        "structurizr.dsl.identifier" : "admin"
+      },
+      "relationships" : [ {
+        "destinationId" : "12",
+        "id" : "17",
+        "sourceId" : "2",
+        "tags" : "Relationship"
+      }, {
+        "destinationId" : "7",
+        "id" : "32",
+        "sourceId" : "2",
+        "tags" : "Relationship"
+      }, {
+        "destinationId" : "3",
+        "id" : "33",
+        "linkedRelationshipId" : "32",
+        "sourceId" : "2"
+      } ],
+      "tags" : "Element,Person"
+    } ],
+    "softwareSystems" : [ {
+      "containers" : [ {
+        "description" : "Submits problems, shows routes and convergence.",
+        "documentation" : { },
+        "id" : "4",
+        "name" : "Client Application",
+        "properties" : {
+          "structurizr.dsl.identifier" : "vrp.app"
+        },
+        "relationships" : [ {
+          "description" : "Submits jobs, gets progress",
+          "destinationId" : "5",
+          "id" : "19",
+          "sourceId" : "4",
+          "tags" : "Relationship",
+          "technology" : "gRPC/TLS"
+        }, {
+          "description" : "Downloads results",
+          "destinationId" : "8",
+          "id" : "20",
+          "sourceId" : "4",
+          "tags" : "Relationship",
+          "technology" : "HTTPS, presigned"
+        } ],
+        "tags" : "Element,Container",
+        "technology" : "Python / Streamlit"
+      }, {
+        "description" : "Schedules jobs on workers; owns job state and the migrant pool.",
+        "documentation" : { },
+        "id" : "5",
+        "name" : "Orchestrator",
+        "properties" : {
+          "structurizr.dsl.identifier" : "vrp.orchestrator"
+        },
+        "relationships" : [ {
+          "destinationId" : "9",
+          "id" : "21",
+          "sourceId" : "5",
+          "tags" : "Relationship"
+        }, {
+          "description" : "Manages artifacts",
+          "destinationId" : "8",
+          "id" : "22",
+          "sourceId" : "5",
+          "tags" : "Relationship",
+          "technology" : "S3 API"
+        } ],
+        "tags" : "Element,Container",
+        "technology" : "C++ / gRPC"
+      }, {
+        "description" : "Computes distances and runs the solver on one GPU.",
+        "documentation" : { },
+        "id" : "6",
+        "name" : "Worker",
+        "properties" : {
+          "structurizr.dsl.identifier" : "vrp.worker"
+        },
+        "relationships" : [ {
+          "description" : "Gets tasks, reports progress",
+          "destinationId" : "5",
+          "id" : "23",
+          "sourceId" : "6",
+          "tags" : "Relationship",
+          "technology" : "gRPC/TLS"
+        }, {
+          "description" : "Reads graphs, writes results",
+          "destinationId" : "8",
+          "id" : "24",
+          "sourceId" : "6",
+          "tags" : "Relationship",
+          "technology" : "HTTPS, presigned"
+        } ],
+        "tags" : "Element,Container",
+        "technology" : "C++ / CUDA"
+      }, {
+        "description" : "Turns OSM extracts into versioned graphs.",
+        "documentation" : { },
+        "id" : "7",
+        "name" : "Graph Preprocessor",
+        "properties" : {
+          "structurizr.dsl.identifier" : "vrp.preprocessor"
+        },
+        "relationships" : [ {
+          "destinationId" : "8",
+          "id" : "25",
+          "sourceId" : "7",
+          "tags" : "Relationship"
+        }, {
+          "description" : "Registers graph versions",
+          "destinationId" : "5",
+          "id" : "26",
+          "sourceId" : "7",
+          "tags" : "Relationship",
+          "technology" : "gRPC/TLS"
+        }, {
+          "destinationId" : "10",
+          "id" : "27",
+          "sourceId" : "7",
+          "tags" : "Relationship"
+        } ],
+        "tags" : "Element,Container",
+        "technology" : "Python CLI / pyrosm"
+      }, {
+        "description" : "Graphs, distance matrices and results.",
+        "documentation" : { },
+        "id" : "8",
+        "name" : "Object Store",
+        "properties" : {
+          "structurizr.dsl.identifier" : "vrp.objectStore"
+        },
+        "tags" : "Element,Container,Database",
+        "technology" : "MinIO (S3)"
+      }, {
+        "description" : "Jobs, tasks, leases and graph catalogue.",
+        "documentation" : { },
+        "id" : "9",
+        "name" : "Job State DB",
+        "properties" : {
+          "structurizr.dsl.identifier" : "vrp.stateDb"
+        },
+        "tags" : "Element,Container,Database",
+        "technology" : "PostgreSQL"
+      } ],
+      "description" : "Distributed GPU solver for the Vehicle Routing Problem.",
+      "documentation" : { },
+      "id" : "3",
+      "name" : "VRP-Distributed",
+      "properties" : {
+        "structurizr.dsl.identifier" : "vrp"
+      },
+      "relationships" : [ {
+        "destinationId" : "10",
+        "id" : "14",
+        "sourceId" : "3",
+        "tags" : "Relationship"
+      } ],
+      "tags" : "Element,Software System"
+    }, {
+      "description" : "Road network source (offline import).",
+      "documentation" : { },
+      "id" : "10",
+      "name" : "OpenStreetMap",
+      "properties" : {
+        "structurizr.dsl.identifier" : "osm"
+      },
+      "tags" : "Element,Software System,External"
+    }, {
+      "description" : "Collects and stores metrics.",
+      "documentation" : { },
+      "id" : "11",
+      "name" : "Prometheus",
+      "properties" : {
+        "structurizr.dsl.identifier" : "prometheus"
+      },
+      "relationships" : [ {
+        "destinationId" : "3",
+        "id" : "15",
+        "sourceId" : "11",
+        "tags" : "Relationship"
+      }, {
+        "destinationId" : "5",
+        "id" : "28",
+        "sourceId" : "11",
+        "tags" : "Relationship"
+      }, {
+        "destinationId" : "9",
+        "id" : "29",
+        "sourceId" : "11",
+        "tags" : "Relationship"
+      }, {
+        "destinationId" : "8",
+        "id" : "30",
+        "sourceId" : "11",
+        "tags" : "Relationship"
+      }, {
+        "destinationId" : "6",
+        "id" : "31",
+        "sourceId" : "11",
+        "tags" : "Relationship"
+      } ],
+      "tags" : "Element,Software System,External"
+    }, {
+      "description" : "Shows dashboards.",
+      "documentation" : { },
+      "id" : "12",
+      "name" : "Grafana",
+      "properties" : {
+        "structurizr.dsl.identifier" : "grafana"
+      },
+      "relationships" : [ {
+        "destinationId" : "11",
+        "id" : "16",
+        "sourceId" : "12",
+        "tags" : "Relationship"
+      } ],
+      "tags" : "Element,Software System,External"
+    } ]
+  },
+  "name" : "vrp-distributed",
+  "properties" : {
+    "structurizr.inspection.error" : "48",
+    "structurizr.dsl" : "d29ya3NwYWNlICJ2cnAtZGlzdHJpYnV0ZWQiICJEaXN0cmlidXRlZCBHUFUgc29sdmVyIGZvciB0aGUgVmVoaWNsZSBSb3V0aW5nIFByb2JsZW0iIHsKCiAgICAhaWRlbnRpZmllcnMgaGllcmFyY2hpY2FsCgogICAgbW9kZWwgewogICAgICAgIHVzZXIgID0gcGVyc29uICJEaXNwYXRjaGVyIiAiU3VibWl0cyBwcm9ibGVtcyBhbmQgcmV2aWV3cyByb3V0ZXMuIgogICAgICAgIGFkbWluID0gcGVyc29uICJTeXN0ZW0gQWRtaW5pc3RyYXRvciIgIlJ1bnMgdGhlIHN5c3RlbSBhbmQgZ3JhcGggaW1wb3J0cy4iCgogICAgICAgIHZycCA9IHNvZnR3YXJlU3lzdGVtICJWUlAtRGlzdHJpYnV0ZWQiICJEaXN0cmlidXRlZCBHUFUgc29sdmVyIGZvciB0aGUgVmVoaWNsZSBSb3V0aW5nIFByb2JsZW0uIiB7CiAgICAgICAgICAgIGFwcCAgICAgICAgICA9IGNvbnRhaW5lciAiQ2xpZW50IEFwcGxpY2F0aW9uIiAiU3VibWl0cyBwcm9ibGVtcywgc2hvd3Mgcm91dGVzIGFuZCBjb252ZXJnZW5jZS4iICJQeXRob24gLyBTdHJlYW1saXQiCiAgICAgICAgICAgIG9yY2hlc3RyYXRvciA9IGNvbnRhaW5lciAiT3JjaGVzdHJhdG9yIiAiU2NoZWR1bGVzIGpvYnMgb24gd29ya2Vyczsgb3ducyBqb2Igc3RhdGUgYW5kIHRoZSBtaWdyYW50IHBvb2wuIiAiQysrIC8gZ1JQQyIKICAgICAgICAgICAgd29ya2VyICAgICAgID0gY29udGFpbmVyICJXb3JrZXIiICJDb21wdXRlcyBkaXN0YW5jZXMgYW5kIHJ1bnMgdGhlIHNvbHZlciBvbiBvbmUgR1BVLiIgIkMrKyAvIENVREEiCiAgICAgICAgICAgIHByZXByb2Nlc3NvciA9IGNvbnRhaW5lciAiR3JhcGggUHJlcHJvY2Vzc29yIiAiVHVybnMgT1NNIGV4dHJhY3RzIGludG8gdmVyc2lvbmVkIGdyYXBocy4iICJQeXRob24gQ0xJIC8gcHlyb3NtIgogICAgICAgICAgICBvYmplY3RTdG9yZSAgPSBjb250YWluZXIgIk9iamVjdCBTdG9yZSIgIkdyYXBocywgZGlzdGFuY2UgbWF0cmljZXMgYW5kIHJlc3VsdHMuIiAiTWluSU8gKFMzKSIgewogICAgICAgICAgICAgICAgdGFncyAiRGF0YWJhc2UiCiAgICAgICAgICAgIH0KICAgICAgICAgICAgc3RhdGVEYiAgICAgID0gY29udGFpbmVyICJKb2IgU3RhdGUgREIiICJKb2JzLCB0YXNrcywgbGVhc2VzIGFuZCBncmFwaCBjYXRhbG9ndWUuIiAiUG9zdGdyZVNRTCIgewogICAgICAgICAgICAgICAgdGFncyAiRGF0YWJhc2UiCiAgICAgICAgICAgIH0KICAgICAgICB9CgogICAgICAgIG9zbSA9IHNvZnR3YXJlU3lzdGVtICJPcGVuU3RyZWV0TWFwIiAiUm9hZCBuZXR3b3JrIHNvdXJjZSAob2ZmbGluZSBpbXBvcnQpLiIgewogICAgICAgICAgICB0YWdzICJFeHRlcm5hbCIKICAgICAgICB9CgogICAgICAgIHByb21ldGhldXMgPSBzb2Z0d2FyZVN5c3RlbSAiUHJvbWV0aGV1cyIgIkNvbGxlY3RzIGFuZCBzdG9yZXMgbWV0cmljcy4iIHsKICAgICAgICAgICAgdGFncyAiRXh0ZXJuYWwiCiAgICAgICAgfQoKICAgICAgICBncmFmYW5hID0gc29mdHdhcmVTeXN0ZW0gIkdyYWZhbmEiICJTaG93cyBkYXNoYm9hcmRzLiIgewogICAgICAgICAgICB0YWdzICJFeHRlcm5hbCIKICAgICAgICB9CgogICAgICAgIC8vIC0tLSBDT05URVhUIHJlbGF0aW9ucyAtLS0KICAgICAgICAvLyBSZWxhdGlvbnMgd2l0aG91dCB0ZXh0IGFyZSBzZWxmLWV4cGxhbmF0b3J5IGZyb20gdGhlIGVsZW1lbnQgZGVzY3JpcHRpb25zLgogICAgICAgIHVzZXIgLT4gdnJwCiAgICAgICAgdnJwIC0+IG9zbQogICAgICAgIHByb21ldGhldXMgLT4gdnJwCiAgICAgICAgZ3JhZmFuYSAtPiBwcm9tZXRoZXVzCiAgICAgICAgYWRtaW4gLT4gZ3JhZmFuYQoKICAgICAgICAvLyAtLS0gQ09OVEFJTkVSIHJlbGF0aW9ucyAtLS0KICAgICAgICB1c2VyIC0+IHZycC5hcHAKICAgICAgICB2cnAuYXBwIC0+IHZycC5vcmNoZXN0cmF0b3IgIlN1Ym1pdHMgam9icywgZ2V0cyBwcm9ncmVzcyIgImdSUEMvVExTIgogICAgICAgIHZycC5hcHAgLT4gdnJwLm9iamVjdFN0b3JlICJEb3dubG9hZHMgcmVzdWx0cyIgIkhUVFBTLCBwcmVzaWduZWQiCiAgICAgICAgdnJwLm9yY2hlc3RyYXRvciAtPiB2cnAuc3RhdGVEYgogICAgICAgIHZycC5vcmNoZXN0cmF0b3IgLT4gdnJwLm9iamVjdFN0b3JlICJNYW5hZ2VzIGFydGlmYWN0cyIgIlMzIEFQSSIKICAgICAgICB2cnAud29ya2VyIC0+IHZycC5vcmNoZXN0cmF0b3IgIkdldHMgdGFza3MsIHJlcG9ydHMgcHJvZ3Jlc3MiICJnUlBDL1RMUyIKICAgICAgICB2cnAud29ya2VyIC0+IHZycC5vYmplY3RTdG9yZSAiUmVhZHMgZ3JhcGhzLCB3cml0ZXMgcmVzdWx0cyIgIkhUVFBTLCBwcmVzaWduZWQiCiAgICAgICAgdnJwLnByZXByb2Nlc3NvciAtPiB2cnAub2JqZWN0U3RvcmUKICAgICAgICB2cnAucHJlcHJvY2Vzc29yIC0+IHZycC5vcmNoZXN0cmF0b3IgIlJlZ2lzdGVycyBncmFwaCB2ZXJzaW9ucyIgImdSUEMvVExTIgogICAgICAgIHZycC5wcmVwcm9jZXNzb3IgLT4gb3NtCiAgICAgICAgcHJvbWV0aGV1cyAtPiB2cnAub3JjaGVzdHJhdG9yCiAgICAgICAgcHJvbWV0aGV1cyAtPiB2cnAuc3RhdGVEYgogICAgICAgIHByb21ldGhldXMgLT4gdnJwLm9iamVjdFN0b3JlCiAgICAgICAgcHJvbWV0aGV1cyAtPiB2cnAud29ya2VyCiAgICAgICAgYWRtaW4gLT4gdnJwLnByZXByb2Nlc3NvcgoKICAgICAgICAvLyAtLS0gREVQTE9ZTUVOVCAtLS0KICAgICAgICBkZXBsb3ltZW50RW52aXJvbm1lbnQgIkxhYiIgewogICAgICAgICAgICBkZXBsb3ltZW50Tm9kZSAiU2VydmVyIFBDIiAiQ29udHJvbCBwbGFuZSwgc3RvcmFnZSwgbW9uaXRvcmluZy4iICJMaW51eCBvciBXaW5kb3dzIiB7CiAgICAgICAgICAgICAgICBjb250YWluZXJJbnN0YW5jZSB2cnAub3JjaGVzdHJhdG9yCiAgICAgICAgICAgICAgICBjb250YWluZXJJbnN0YW5jZSB2cnAuc3RhdGVEYgogICAgICAgICAgICAgICAgY29udGFpbmVySW5zdGFuY2UgdnJwLm9iamVjdFN0b3JlCiAgICAgICAgICAgICAgICBzb2Z0d2FyZVN5c3RlbUluc3RhbmNlIHByb21ldGhldXMKICAgICAgICAgICAgICAgIHNvZnR3YXJlU3lzdGVtSW5zdGFuY2UgZ3JhZmFuYQogICAgICAgICAgICB9CiAgICAgICAgICAgIGRlcGxveW1lbnROb2RlICJHUFUgV29ya2VyIFBDIiAiT25lIE5WSURJQSBHUFUsIHNhbWUgTEFOIGFzIHRoZSBzZXJ2ZXIuIiAiV2luZG93cyBvciBMaW51eCIgIiIgIjEuLjgiIHsKICAgICAgICAgICAgICAgIGNvbnRhaW5lckluc3RhbmNlIHZycC53b3JrZXIKICAgICAgICAgICAgfQogICAgICAgICAgICBkZXBsb3ltZW50Tm9kZSAiRGlzcGF0Y2hlciBQQyIgIlJlYWNoZXMgdGhlIG9yY2hlc3RyYXRvciBhbmQgb2JqZWN0IHN0b3JlLiIgIldpbmRvd3Mgb3IgTGludXgiIHsKICAgICAgICAgICAgICAgIGNvbnRhaW5lckluc3RhbmNlIHZycC5hcHAKICAgICAgICAgICAgfQogICAgICAgICAgICBkZXBsb3ltZW50Tm9kZSAiQWRtaW4gV29ya3N0YXRpb24iICIiICJXaW5kb3dzIG9yIExpbnV4IiB7CiAgICAgICAgICAgICAgICBjb250YWluZXJJbnN0YW5jZSB2cnAucHJlcHJvY2Vzc29yCiAgICAgICAgICAgIH0KICAgICAgICB9CiAgICB9CgogICAgdmlld3MgewogICAgICAgIHN5c3RlbUNvbnRleHQgdnJwICJDb250ZXh0IiB7CiAgICAgICAgICAgIGluY2x1ZGUgKgogICAgICAgICAgICBpbmNsdWRlIGdyYWZhbmEgYWRtaW4KICAgICAgICAgICAgYXV0b0xheW91dCBscgogICAgICAgIH0KCiAgICAgICAgY29udGFpbmVyIHZycCAiQ29udGFpbmVycyIgewogICAgICAgICAgICBpbmNsdWRlICoKICAgICAgICB9CgogICAgICAgIGRlcGxveW1lbnQgKiAiTGFiIiAiRGVwbG95bWVudCIgewogICAgICAgICAgICBpbmNsdWRlICoKICAgICAgICB9CgogICAgICAgIHN0eWxlcyB7CiAgICAgICAgICAgIGVsZW1lbnQgIkV4dGVybmFsIiB7CiAgICAgICAgICAgICAgICBiYWNrZ3JvdW5kICM5OTk5OTkKICAgICAgICAgICAgICAgIGNvbG9yICNmZmZmZmYKICAgICAgICAgICAgfQogICAgICAgICAgICBlbGVtZW50ICJQZXJzb24iIHsKICAgICAgICAgICAgICAgIHNoYXBlIHBlcnNvbgogICAgICAgICAgICB9CiAgICAgICAgICAgIGVsZW1lbnQgIkRhdGFiYXNlIiB7CiAgICAgICAgICAgICAgICBzaGFwZSBjeWxpbmRlcgogICAgICAgICAgICB9CiAgICAgICAgfQogICAgfQp9",
+    "structurizr.inspection.info" : "0",
+    "structurizr.inspection.ignore" : "0",
+    "structurizr.inspection.warning" : "0"
+  },
+  "views" : {
+    "configuration" : {
+      "lastSavedView" : "Deployment",
+      "styles" : {
+        "elements" : [ {
+          "shape" : "Cylinder",
+          "tag" : "Database"
+        }, {
+          "background" : "#999999",
+          "color" : "#ffffff",
+          "tag" : "External"
+        }, {
+          "shape" : "Person",
+          "tag" : "Person"
+        } ]
+      },
+      "terminology" : { }
+    },
+    "containerViews" : [ {
+      "dimensions" : {
+        "height" : 2536,
+        "width" : 3080
+      },
+      "elements" : [ {
+        "id" : "1",
+        "x" : 18,
+        "y" : 43
+      }, {
+        "id" : "2",
+        "x" : 18,
+        "y" : 988
+      }, {
+        "id" : "4",
+        "x" : 980,
+        "y" : 83
+      }, {
+        "id" : "5",
+        "x" : 1770,
+        "y" : 624
+      }, {
+        "id" : "6",
+        "x" : 980,
+        "y" : 440
+      }, {
+        "id" : "7",
+        "x" : 980,
+        "y" : 1044
+      }, {
+        "id" : "8",
+        "x" : 2560,
+        "y" : 624
+      }, {
+        "id" : "9",
+        "x" : 2560,
+        "y" : 1518
+      }, {
+        "id" : "10",
+        "x" : 980,
+        "y" : 2123
+      }, {
+        "id" : "11",
+        "x" : 368,
+        "y" : 1518
+      } ],
+      "externalSoftwareSystemBoundariesVisible" : false,
+      "key" : "Containers",
+      "name" : "Container View: VRP-Distributed",
+      "order" : 2,
+      "relationships" : [ {
+        "id" : "18"
+      }, {
+        "id" : "19"
+      }, {
+        "id" : "20",
+        "vertices" : [ {
+          "x" : 2785,
+          "y" : 233
+        } ]
+      }, {
+        "id" : "21",
+        "vertices" : [ {
+          "x" : 1995,
+          "y" : 1338
+        } ]
+      }, {
+        "id" : "22"
+      }, {
+        "id" : "23"
+      }, {
+        "id" : "24",
+        "vertices" : [ {
+          "x" : 1600,
+          "y" : 370
+        }, {
+          "x" : 2390,
+          "y" : 370
+        } ]
+      }, {
+        "id" : "25",
+        "vertices" : [ {
+          "x" : 2390,
+          "y" : 1194
+        } ]
+      }, {
+        "id" : "26"
+      }, {
+        "id" : "27"
+      }, {
+        "id" : "28",
+        "vertices" : [ {
+          "x" : 683,
+          "y" : 1508
+        }, {
+          "x" : 683,
+          "y" : 774
+        } ]
+      }, {
+        "id" : "29"
+      }, {
+        "id" : "30",
+        "vertices" : [ {
+          "x" : 2785,
+          "y" : 1328
+        } ]
+      }, {
+        "id" : "31",
+        "vertices" : [ {
+          "x" : 593,
+          "y" : 590
+        } ]
+      }, {
+        "id" : "32"
+      } ],
+      "softwareSystemId" : "3"
+    } ],
+    "deploymentViews" : [ {
+      "dimensions" : {
+        "height" : 2540,
+        "width" : 2910
+      },
+      "elements" : [ {
+        "id" : "34",
+        "x" : 0,
+        "y" : 0
+      }, {
+        "id" : "35",
+        "x" : 1529,
+        "y" : 1759
+      }, {
+        "id" : "36",
+        "x" : 2209,
+        "y" : 1759
+      }, {
+        "id" : "38",
+        "x" : 1529,
+        "y" : 954
+      }, {
+        "id" : "40",
+        "x" : 1529,
+        "y" : 209
+      }, {
+        "id" : "44",
+        "x" : 2209,
+        "y" : 209
+      }, {
+        "id" : "46",
+        "x" : 0,
+        "y" : 0
+      }, {
+        "id" : "47",
+        "x" : 624,
+        "y" : 209
+      }, {
+        "id" : "51",
+        "x" : 0,
+        "y" : 0
+      }, {
+        "id" : "52",
+        "x" : 624,
+        "y" : 954
+      }, {
+        "id" : "55",
+        "x" : 0,
+        "y" : 0
+      }, {
+        "id" : "56",
+        "x" : 624,
+        "y" : 1759
+      } ],
+      "environment" : "Lab",
+      "key" : "Deployment",
+      "name" : "Deployment View: Lab",
+      "order" : 3,
+      "relationships" : [ {
+        "id" : "37"
+      }, {
+        "id" : "39"
+      }, {
+        "id" : "41",
+        "vertices" : [ {
+          "x" : 2194,
+          "y" : 1094
+        } ]
+      }, {
+        "id" : "42",
+        "vertices" : [ {
+          "x" : 2434,
+          "y" : 1094
+        } ]
+      }, {
+        "id" : "43"
+      }, {
+        "id" : "45"
+      }, {
+        "id" : "48",
+        "vertices" : [ {
+          "x" : 199,
+          "y" : 359
+        }, {
+          "x" : 199,
+          "y" : 2259
+        }, {
+          "x" : 1754,
+          "y" : 2259
+        } ]
+      }, {
+        "id" : "49"
+      }, {
+        "id" : "50"
+      }, {
+        "id" : "53",
+        "vertices" : [ {
+          "x" : 849,
+          "y" : 1529
+        }, {
+          "x" : 1184,
+          "y" : 1529
+        } ]
+      }, {
+        "id" : "54"
+      }, {
+        "id" : "57"
+      }, {
+        "id" : "58"
+      } ]
+    } ],
+    "systemContextViews" : [ {
+      "automaticLayout" : {
+        "edgeSeparation" : 50,
+        "nodeSeparation" : 50,
+        "rankDirection" : "LeftRight",
+        "rankSeparation" : 100,
+        "vertices" : true
+      },
+      "elements" : [ {
+        "id" : "1",
+        "x" : 0,
+        "y" : 0
+      }, {
+        "id" : "2",
+        "x" : 0,
+        "y" : 0
+      }, {
+        "id" : "3",
+        "x" : 0,
+        "y" : 0
+      }, {
+        "id" : "10",
+        "x" : 0,
+        "y" : 0
+      }, {
+        "id" : "11",
+        "x" : 0,
+        "y" : 0
+      }, {
+        "id" : "12",
+        "x" : 0,
+        "y" : 0
+      } ],
+      "enterpriseBoundaryVisible" : true,
+      "key" : "Context",
+      "name" : "System Context View: VRP-Distributed",
+      "order" : 1,
+      "relationships" : [ {
+        "id" : "13"
+      }, {
+        "id" : "14"
+      }, {
+        "id" : "15"
+      }, {
+        "id" : "16"
+      }, {
+        "id" : "17"
+      }, {
+        "id" : "33"
+      } ],
+      "softwareSystemId" : "3"
+    } ]
+  }
+}
