@@ -11,6 +11,11 @@ add_library(vrp_core STATIC
     src/reference/snapping.cpp
     src/snapping.cpp
     src/solution.cpp
+    src/solver/crossover.cpp
+    src/solver/evaluation.cpp
+    src/solver/population.cpp
+    src/solver/random.cpp
+    src/solver/split.cpp
 )
 add_library(vrp::core ALIAS vrp_core)
 
@@ -30,6 +35,8 @@ if(VRP_ENABLE_CUDA)
         src/gpu/device_graph.cu
         src/gpu/distance_batch.cu
         src/gpu/distance_rows.cpp
+        src/gpu/island.cpp
+        src/gpu/local_search.cu
     )
     add_library(vrp::core_gpu ALIAS vrp_core_gpu)
 

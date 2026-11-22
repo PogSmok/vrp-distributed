@@ -28,14 +28,29 @@ StatusOr<DeviceBuffer<T>> Allocate(std::size_t size) {
       std::unique_ptr<T, DeviceFree>(static_cast<T*>(pointer)), size);
 }
 
+// Copies `values` to the start of `buffer`.
+// Precondition: `buffer` holds at least `values.size()` values.
+template <typename T>
+Status CopyToDevice(const DeviceBuffer<T>& buffer, std::span<const T> values) {
+  return CudaStatus(cudaMemcpy(buffer.data.get(), values.data(),
+                               values.size_bytes(), cudaMemcpyHostToDevice),
+                    "cudaMemcpy to the GPU");
+}
+
+// Copies the start of `buffer` to `values`.
+// Precondition: `buffer` holds at least `values.size()` values.
+template <typename T>
+Status CopyToHost(std::span<T> values, const DeviceBuffer<T>& buffer) {
+  return CudaStatus(cudaMemcpy(values.data(), buffer.data.get(),
+                               values.size_bytes(), cudaMemcpyDeviceToHost),
+                    "cudaMemcpy from the GPU");
+}
+
 // A copy of `values` in GPU memory.
 template <typename T>
 StatusOr<DeviceBuffer<T>> Upload(std::span<const T> values) {
   VRP_ASSIGN_OR_RETURN(DeviceBuffer<T> buffer, Allocate<T>(values.size()));
-  VRP_RETURN_IF_ERROR(
-      CudaStatus(cudaMemcpy(buffer.data.get(), values.data(),
-                            values.size_bytes(), cudaMemcpyHostToDevice),
-                 "cudaMemcpy to the GPU"));
+  VRP_RETURN_IF_ERROR(CopyToDevice(buffer, values));
   return StatusOr<DeviceBuffer<T>>(std::move(buffer));
 }
 

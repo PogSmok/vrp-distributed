@@ -12,6 +12,10 @@ add_executable(vrp_core_tests
     test_status_macros.cpp
     reference/test_dijkstra.cpp
     reference/test_snapping.cpp
+    solver/test_crossover.cpp
+    solver/test_population.cpp
+    solver/test_random.cpp
+    solver/test_split.cpp
 )
 
 target_include_directories(vrp_core_tests PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
@@ -38,7 +42,10 @@ if(VRP_ENABLE_CUDA)
     add_executable(vrp_core_gpu_tests
         gpu/test_distance_batch.cpp
         gpu/test_distance_rows.cpp
+        gpu/test_island.cpp
+        gpu/test_local_search.cpp
         test_graphs.cpp
+        test_problems.cpp
     )
 
     target_include_directories(vrp_core_gpu_tests PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})

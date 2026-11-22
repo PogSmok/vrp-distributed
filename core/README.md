@@ -18,12 +18,45 @@ benchmark CLI build on it.
 | `geo.hpp`             | Great-circle distance and position checks                                               | 0006       |
 | `snapping.hpp`        | Snaps stops to their nearest nodes through a grid index; matches the reference exactly  | 0006       |
 | `reference/`          | CPU oracles: Dijkstra, distance matrix, brute-force snapping. Never used in production  | 0023       |
-| `gpu/`                | `DeviceGraph`, `DistanceBatch` and `ComputeDistanceRows`: the distance phase on the GPU | 0011, 0017 |
+| `solver/`             | Split, order crossover and the HGS population: the CPU part of the solver               | 0018       |
+| `gpu/`                | The distance phase, and the solver's GPU local search and `Island`                      | 0017, 0018 |
 
 The GPU code is a separate target, `vrp_core_gpu`, built only with
 `VRP_ENABLE_CUDA`, so `vrp_core` builds and passes its tests without CUDA.
-The GPU tests are labelled `gpu` and checked against `reference/`. The solver
-kernels (0018) come next.
+The GPU tests are labelled `gpu` and checked against `reference/`.
+
+## Solver
+
+An `Island` (ADR 0018) follows HGS-CVRP, the hybrid genetic search of
+Thibaut Vidal (see [References](#references)): giant tours, Split, order
+crossover, a population ranked by cost and broken-pairs diversity, an
+adaptive capacity penalty and repair. Its local search runs on the GPU for a
+batch of children at once: every customer's best move with its nearest
+neighbours is found in parallel, and the best moves that share no route are
+applied. Its random draws come from `solver/random.hpp`, so the same seed
+gives the same search on Windows and Linux. Differences from HGS-CVRP, each a
+candidate for tuning:
+
+- moves are relocate (one customer, or a pair in either orientation), swap,
+  intra-route 2-opt and 2-opt*; SWAP* and the reversing 2-opt* are not used;
+- the giant tour concatenates routes in their order, not by polar angle;
+- there are no restarts, since the task's time limit ends the search;
+- children are bred a batch at a time, from the population as it was before
+  the batch, where HGS-CVRP adds each child before breeding the next;
+- order crossover keeps the whole first parent when the slice's end falls
+  just before its start, where HGS-CVRP's loop keeps none of it.
+
+Known limits, to be measured before they are changed:
+
+- Each round of the local search re-uploads the whole batch and applies the
+  chosen moves on the CPU. At thousands of customers the transfers and the
+  CPU work may outweigh the kernel, which matters for the 1-second steps of
+  ADR 0024. Uploading only the changed routes, or applying moves on the GPU,
+  are the next steps if a measurement on the slowest GPU shows it.
+- Every `Island` uploads its own copy of the matrix: P islands on one GPU
+  (ADR 0013) hold P copies, about 100 MB each at 5,000 customers. Sharing one
+  device matrix, and batching the children of all islands together, belongs
+  in the worker's design.
 
 ## Conventions
 
@@ -54,3 +87,17 @@ cmake --preset cuda
 cmake --build --preset cuda
 ctest --preset cuda
 ```
+
+## References
+
+- T. Vidal, T. G. Crainic, M. Gendreau, N. Lahrichi and W. Rei (2012). A
+  hybrid genetic algorithm for multidepot and periodic vehicle routing
+  problems. *Operations Research* 60(3). The hybrid genetic search: the
+  population, biased fitness and diversity management.
+- T. Vidal (2016). Split algorithm in O(n) for the capacitated vehicle
+  routing problem. *Computers & Operations Research* 69. The algorithm of
+  `solver/split.cpp`.
+- T. Vidal (2022). Hybrid genetic search for the CVRP: open-source
+  implementation and SWAP\* neighborhood. *Computers & Operations Research*
+  140. HGS-CVRP, which `solver/` and `gpu/island.cpp` follow and whose
+  defaults they use.
