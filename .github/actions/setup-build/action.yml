@@ -1,12 +1,13 @@
 name: Set up C++ build
 description: >
   Restores the FetchContent download cache (GoogleTest), keyed by the runner
-  image (or the job's container image) and the CMake files that pin
-  dependencies.
+  image, an optional variant and the CMake files that pin dependencies.
 
 inputs:
-  container-image:
-    description: The job's container image, if it runs in one.
+  cache-variant:
+    description: >
+      Keeps this job's cache apart from other jobs on the same runner image,
+      for a job whose preset downloads to a different directory.
     default: ''
 
 runs:
@@ -15,12 +16,10 @@ runs:
     - name: Read runner image version
       id: image
       shell: bash
-      env:
-        CONTAINER_IMAGE: ${{ inputs.container-image }}
-      run: echo "version=${CONTAINER_IMAGE:-${ImageVersion:-unknown}}" >> "$GITHUB_OUTPUT"
+      run: echo "version=${ImageVersion:-unknown}" >> "$GITHUB_OUTPUT"
 
     - name: Cache FetchContent dependencies
       uses: actions/cache@v6
       with:
         path: _deps
-        key: ${{ runner.os }}-${{ steps.image.outputs.version }}-fetchcontent-${{ hashFiles('CMakeLists.txt') }}
+        key: ${{ runner.os }}-${{ steps.image.outputs.version }}${{ inputs.cache-variant && format('-{0}', inputs.cache-variant) || '' }}-fetchcontent-${{ hashFiles('CMakeLists.txt') }}

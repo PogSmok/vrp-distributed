@@ -9,6 +9,7 @@ add_library(vrp_core STATIC
     src/leg_router.cpp
     src/reference/dijkstra.cpp
     src/reference/snapping.cpp
+    src/snapping.cpp
     src/solution.cpp
 )
 add_library(vrp::core ALIAS vrp_core)
@@ -28,6 +29,7 @@ if(VRP_ENABLE_CUDA)
         src/gpu/device_buffer.cu
         src/gpu/device_graph.cu
         src/gpu/distance_batch.cu
+        src/gpu/distance_rows.cpp
     )
     add_library(vrp::core_gpu ALIAS vrp_core_gpu)
 

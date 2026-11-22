@@ -40,6 +40,14 @@
       }
     },
     {
+      "name": "cuda-release",
+      "displayName": "Release with the GPU kernels, for benchmarks",
+      "inherits": "cuda",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "RelWithDebInfo"
+      }
+    },
+    {
       "name": "asan",
       "displayName": "AddressSanitizer + UndefinedBehaviorSanitizer",
       "inherits": "base",
@@ -79,6 +87,10 @@
     {
       "name": "cuda",
       "configurePreset": "cuda"
+    },
+    {
+      "name": "cuda-release",
+      "configurePreset": "cuda-release"
     },
     {
       "name": "asan",
@@ -121,6 +133,11 @@
       "name": "cuda",
       "inherits": "base",
       "configurePreset": "cuda"
+    },
+    {
+      "name": "cuda-release",
+      "inherits": "base",
+      "configurePreset": "cuda-release"
     },
     {
       "name": "asan",

@@ -24,6 +24,7 @@ enum class StatusCode : std::uint8_t {
   kNotFound,
   kOutOfRange,
   kInternal,
+  kCancelled,
 };
 
 // The outcome of an operation: OK, or an error code with a message.
@@ -57,6 +58,9 @@ inline Status OutOfRangeError(std::string message) {
 }
 inline Status InternalError(std::string message) {
   return {StatusCode::kInternal, std::move(message)};
+}
+inline Status CancelledError(std::string message) {
+  return {StatusCode::kCancelled, std::move(message)};
 }
 
 // Either a value or an error Status, modelled on absl::StatusOr.

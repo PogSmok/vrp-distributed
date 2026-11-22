@@ -2,8 +2,9 @@
 
 Turns OpenStreetMap extracts into versioned road graphs in the format of
 `docs/formats/graph.md` (ADR 0005, 0015, 0027), and writes synthetic graphs
-for testing. It is a member of the Python workspace defined by the root
-`pyproject.toml`.
+for testing. `vrp-preprocessor problem` writes a random problem on a graph
+version, in the format of `docs/formats/problem.md` (ADR 0006). It is a
+member of the Python workspace defined by the root `pyproject.toml`.
 
 ## Setup
 
