@@ -4,6 +4,7 @@
 
 # Reading input files; built without CUDA, so that its tests run everywhere.
 add_library(vrp_bench_files STATIC
+    src/cvrplib_file.cpp
     src/problem_file.cpp
 )
 target_include_directories(vrp_bench_files
@@ -31,7 +32,10 @@ endif()
 if(VRP_BUILD_TESTS)
     include(GoogleTest)
 
-    add_executable(vrp_bench_tests tests/test_problem_file.cpp)
+    add_executable(vrp_bench_tests
+        tests/test_cvrplib_file.cpp
+        tests/test_problem_file.cpp
+    )
     target_link_libraries(vrp_bench_tests
         PRIVATE
             vrp_bench_files
@@ -55,6 +59,20 @@ if(VRP_BUILD_TESTS)
             PROPERTIES
                 LABELS gpu
                 PASS_REGULAR_EXPRESSION "matches the CPU reference"
+        )
+
+        # Solving the same problem end to end; the result is checked by
+        # vrp-bench itself (ADR 0025's checks).
+        add_test(NAME VrpBench.SolvesTheGoldenProblem
+            COMMAND vrp-bench solve
+                --graph ${PROJECT_SOURCE_DIR}/docs/formats/golden-v1/graph.bin
+                --problem ${CMAKE_CURRENT_SOURCE_DIR}/tests/golden_problem.json
+                --seconds 1
+        )
+        set_tests_properties(VrpBench.SolvesTheGoldenProblem
+            PROPERTIES
+                LABELS gpu
+                PASS_REGULAR_EXPRESSION "best: 1 routes"
         )
     endif()
 endif()
