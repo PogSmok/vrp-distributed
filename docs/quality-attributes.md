@@ -10,8 +10,8 @@ values. "(assumption)" marks facts about hardware we do not know yet;
 |---------------------|--------------------------------------------------------------------------------------------------------------|------------------------------|
 | Network             | All workers on the same network as the server (reachable by Prometheus, discovered through the orchestrator) | ADR 0002, 0010               |
 | Operating systems   | Mix of Windows and Linux machines                                                                            | ADR 0007, 0008, 0019         |
-| GPUs                | NVIDIA GPU with compute capability 6.0 (Pascal) or newer (assumption)                                        | ADR 0007, 0011, 0019         |
-| Smallest GPU memory | 4 GB (assumption); must hold graph + matrix + solver state                                                   | ADR 0011                     |
+| GPUs                | NVIDIA GPU of compute capability 6.1 (Pascal) or newer; the oldest and weakest is a GTX 1060 6 GB            | ADR 0007, 0011, 0017, 0019   |
+| Smallest GPU memory | 6 GB (GTX 1060); must hold graph + matrix + solver state                                                     | ADR 0011                     |
 
 ## Scale
 

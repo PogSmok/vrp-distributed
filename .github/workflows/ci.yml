@@ -36,6 +36,32 @@ jobs:
       - name: Test
         run: ctest --preset ${{ matrix.preset }}
 
+  cuda:
+    name: CUDA build (ubuntu-latest)
+    runs-on: ubuntu-latest
+    container: nvidia/cuda:12.9.1-devel-ubuntu24.04
+    steps:
+      - name: Install build tools
+        run: >
+          apt-get update && apt-get install -y --no-install-recommends
+          ca-certificates cmake g++ git ninja-build
+
+      - uses: actions/checkout@v7
+
+      - name: Set up build
+        uses: ./.github/actions/setup-build
+        with:
+          container-image: ${{ job.container.image }}
+
+      - name: Configure
+        run: cmake --preset cuda
+
+      - name: Build
+        run: cmake --build --preset cuda
+
+      - name: Test
+        run: ctest --preset cuda --label-exclude gpu
+
   sanitizers:
     name: ${{ matrix.name }}
     strategy:
@@ -109,9 +135,11 @@ jobs:
       - name: Configure
         run: cmake --preset default
 
+      # The default preset builds without CUDA, so the GPU tests have no
+      # compile commands here.
       - name: Run clang-tidy
         run: >
-          find core -type f -name "*.cpp"
+          find core -type f -name "*.cpp" -not -path "core/tests/gpu/*"
           | xargs -r -P "$(nproc)" -n 1 clang-tidy-22 -p build/default --quiet
 
   format:

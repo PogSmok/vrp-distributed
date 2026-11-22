@@ -28,6 +28,15 @@ class Adjacency {
   [[nodiscard]] std::span<const NodeId> Neighbors(NodeId node) const;
   [[nodiscard]] std::span<const Cost> Weights(NodeId node, EdgeCost cost) const;
 
+  // The whole arrays, for copying to the GPU.
+  [[nodiscard]] std::span<const std::uint32_t> Offsets() const {
+    return offsets_;
+  }
+  [[nodiscard]] std::span<const NodeId> Neighbors() const { return neighbors_; }
+  [[nodiscard]] std::span<const Cost> Weights(EdgeCost cost) const {
+    return cost == EdgeCost::kLength ? lengths_ : times_;
+  }
+
  private:
   friend class RoadGraph;
 

@@ -17,8 +17,12 @@ benchmark CLI build on it.
 | `leg_router.hpp`      | Bidirectional Dijkstra for route geometry; batched over a caller-supplied `ParallelFor` | 0025       |
 | `geo.hpp`             | Great-circle distance and position checks                                               | 0006       |
 | `reference/`          | CPU oracles: Dijkstra, distance matrix, brute-force snapping. Never used in production  | 0023       |
+| `gpu/`                | `DeviceGraph` and `DistanceBatch`: the distance phase on the GPU, in `vrp_core_gpu`     | 0017       |
 
-The GPU kernels (distance phase, 0017; solver, 0018) come next and are tested against `reference/`.
+The GPU code is a separate target, `vrp_core_gpu`, built only with
+`VRP_ENABLE_CUDA`, so `vrp_core` builds and passes its tests without CUDA.
+The GPU tests are labelled `gpu` and checked against `reference/`. The solver
+kernels (0018) come next.
 
 ## Conventions
 
@@ -39,4 +43,13 @@ The GPU kernels (distance phase, 0017; solver, 0018) come next and are tested ag
 cmake --preset default # or: release, asan, tsan, coverage
 cmake --build --preset default
 ctest --preset default
+```
+
+The `cuda` preset adds the GPU code and its tests. It needs CUDA 12.8 or
+a later 12.x.
+
+```sh
+cmake --preset cuda
+cmake --build --preset cuda
+ctest --preset cuda
 ```

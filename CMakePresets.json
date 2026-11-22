@@ -30,6 +30,16 @@
       }
     },
     {
+      "name": "cuda",
+      "displayName": "Debug with the GPU kernels",
+      "inherits": "base",
+      "generator": "Ninja",
+      "cacheVariables": {
+        "VRP_ENABLE_CUDA": "ON",
+        "FETCHCONTENT_BASE_DIR": "${sourceDir}/_deps/cuda"
+      }
+    },
+    {
       "name": "asan",
       "displayName": "AddressSanitizer + UndefinedBehaviorSanitizer",
       "inherits": "base",
@@ -67,6 +77,10 @@
       "configuration": "RelWithDebInfo"
     },
     {
+      "name": "cuda",
+      "configurePreset": "cuda"
+    },
+    {
       "name": "asan",
       "configurePreset": "asan"
     },
@@ -102,6 +116,11 @@
       "inherits": "base",
       "configurePreset": "release",
       "configuration": "RelWithDebInfo"
+    },
+    {
+      "name": "cuda",
+      "inherits": "base",
+      "configurePreset": "cuda"
     },
     {
       "name": "asan",
