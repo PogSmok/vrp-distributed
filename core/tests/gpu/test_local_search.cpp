@@ -144,7 +144,7 @@ void ExpectLocalOptimum(const Cvrp& cvrp, std::vector<Route> routes,
 }
 
 TEST(LocalSearchTest, StopsOnlyWhereNoMoveImproves) {
-  for (const std::size_t customers : {8, 25}) {
+  for (const std::size_t customers : {8U, 25U}) {
     const Cvrp cvrp = MakeRandomCvrp(customers, /*seed=*/9);
     // Every customer is a neighbour, as the oracle assumes.
     LocalSearch search =
@@ -165,7 +165,7 @@ TEST(LocalSearchTest, StopsOnlyWhereNoMoveImproves) {
 // this checks the formula of every move the search applied. The search
 // must also never get worse, and stop only at a local optimum.
 TEST(LocalSearchTest, PredictsTheCostOfEveryMoveAndConverges) {
-  for (const std::size_t customers : {1, 2, 15, 150}) {
+  for (const std::size_t customers : {1U, 2U, 15U, 150U}) {
     const Cvrp cvrp = MakeRandomCvrp(customers, /*seed=*/3);
     LocalSearch search =
         LocalSearch::Create(cvrp.matrix, cvrp.problem, kNeighbors, kBatch)
