@@ -164,3 +164,65 @@ jobs:
         with:
           name: coverage-report
           path: coverage-html/
+
+  python:
+    name: Python ${{ matrix.python }} (${{ matrix.os }})
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ ubuntu-latest, windows-latest ]
+        python: [ '3.13', '3.14' ]
+    runs-on: ${{ matrix.os }}
+    env:
+      HYPOTHESIS_PROFILE: ci
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Set up uv and Python
+        uses: astral-sh/setup-uv@v10
+        with:
+          version: '0.13.7'
+          python-version: ${{ matrix.python }}
+          enable-cache: true
+
+      # --locked fails if uv.lock is out of date with the pyproject files.
+      - name: Install
+        run: uv sync --locked --all-packages
+
+      - name: Check formatting
+        run: uv run --locked ruff format --check
+
+      - name: Lint
+        run: uv run --locked ruff check
+
+      - name: Type-check
+        run: uv run --locked mypy
+
+      # Development mode and warn_default_encoding turn unclosed files and
+      # platform-dependent text encodings into warnings, which fail the tests.
+      - name: Test
+        run: >
+          uv run --locked python -X dev -X warn_default_encoding
+          -m pytest --cov --cov-report=term-missing
+
+  python-audit:
+    name: Python dependency audit
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Set up uv and Python
+        uses: astral-sh/setup-uv@v10
+        with:
+          version: '0.13.7'
+          python-version: '3.14'
+          enable-cache: true
+
+      # Checks every locked dependency, with hashes, for known
+      # vulnerabilities. uv environments have no pip, hence --disable-pip.
+      - name: Audit locked dependencies
+        run: |
+          uv export --locked --all-packages --all-groups --no-emit-workspace \
+            --format requirements-txt --output-file requirements-audit.txt
+          uv run --locked pip-audit --requirement requirements-audit.txt \
+            --disable-pip --require-hashes --progress-spinner off
