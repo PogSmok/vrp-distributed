@@ -11,6 +11,7 @@ benchmark CLI build on it.
 | `status.hpp`          | `Status` and `StatusOr`; the library never throws                                       | —          |
 | `types.hpp`           | Integer costs, node IDs, edge cost choice                                               | 0020       |
 | `graph.hpp`           | Immutable road graph in compressed sparse rows, both directions                         | 0005       |
+| `graph_file.hpp`      | Parses `graph.bin` (`docs/formats/graph.md`) into a `RoadGraph`, with the reader checks | 0027       |
 | `distance_matrix.hpp` | `(n+1) × (n+1)` asymmetric cost matrix, depot first                                     | 0011       |
 | `solution.hpp`        | Problem and solution checks, route cost evaluation                                      | 0006, 0025 |
 | `leg_router.hpp`      | Bidirectional Dijkstra for route geometry; batched over a caller-supplied `ParallelFor` | 0025       |
