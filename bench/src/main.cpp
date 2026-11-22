@@ -9,8 +9,10 @@
 #include <cstdint>
 #include <cstdio>
 #include <exception>
+#include <filesystem>
 #include <format>
 #include <fstream>
+#include <functional>
 #include <iostream>
 #include <iterator>
 #include <memory>
@@ -20,19 +22,27 @@
 #include <string>
 #include <string_view>
 #include <system_error>
+#include <thread>
+#include <utility>
 #include <vector>
 
 #include "vrp/bench/cvrplib_file.hpp"
+#include "vrp/bench/manifest_file.hpp"
 #include "vrp/bench/problem_file.hpp"
 #include "vrp/core/distance_matrix.hpp"
+#include "vrp/core/edge_geometry.hpp"
+#include "vrp/core/gpu/device.hpp"
 #include "vrp/core/gpu/device_graph.hpp"
 #include "vrp/core/gpu/distance_rows.hpp"
 #include "vrp/core/gpu/island.hpp"
 #include "vrp/core/graph.hpp"
 #include "vrp/core/graph_file.hpp"
 #include "vrp/core/reference/dijkstra.hpp"
+#include "vrp/core/result.hpp"
+#include "vrp/core/result_file.hpp"
 #include "vrp/core/snapping.hpp"
 #include "vrp/core/solution.hpp"
+#include "vrp/core/solver_parameter.hpp"
 #include "vrp/core/status.hpp"
 #include "vrp/core/status_macros.hpp"
 #include "vrp/core/types.hpp"
@@ -45,23 +55,25 @@ using core::Status;
 using core::StatusOr;
 
 constexpr std::string_view kUsage =
-    "usage: vrp-bench distances --graph <graph.bin> --problem <problem.json>\n"
+    "usage: vrp-bench distances --graph <directory> --problem <problem.json>\n"
     "                           [--max-snap-m <metres>] [--check]\n"
     "       vrp-bench solve --cvrplib <instance.vrp> [--vehicles <count>]\n"
     "                       [--seconds <seconds>] [--seed <seed>]\n"
-    "       vrp-bench solve --graph <graph.bin> --problem <problem.json>\n"
+    "       vrp-bench solve --graph <directory> --problem <problem.json>\n"
     "                       [--max-snap-m <metres>] [--seconds <seconds>]\n"
-    "                       [--seed <seed>]\n";
+    "                       [--seed <seed>] [--result <result.json>]\n";
 
 struct Options {
   std::string command;
-  std::string graph;
+  std::string graph;  // a graph version's directory
   std::string problem;
   std::string cvrplib;
+  std::string result;
   double max_snap_m = 500.0;
   bool check = false;  // compare with the CPU reference, which is slow
   double seconds = 10.0;
   std::uint32_t seed = 0;
+  core::gpu::IslandParameters island;  // the defaults
   // CVRPLIB does not fix the fleet; by default, HGS-CVRP's.
   std::optional<std::uint32_t> vehicles;
 };
@@ -78,12 +90,35 @@ std::string SecondsSince(Clock::time_point start) {
 // output is redirected.
 void Print(std::string_view line) { std::cout << line << '\n' << std::flush; }
 
-StatusOr<std::string> ReadFile(const std::string& path) {
+StatusOr<std::string> ReadFile(const std::filesystem::path& path) {
   std::ifstream file(path, std::ios::binary);
   if (!file) {
-    return NotFoundError("cannot read " + path);
+    return NotFoundError("cannot read " + path.string());
   }
   return std::string(std::istreambuf_iterator<char>(file), {});
+}
+
+Status WriteFile(const std::string& path, std::string_view text) {
+  std::ofstream file(path, std::ios::binary);
+  file << text;
+  if (!file) {
+    return NotFoundError("cannot write " + path);
+  }
+  return {};
+}
+
+// A ParallelFor over every hardware thread, as the worker's pool will be
+// (ADR 0025).
+void ThreadedFor(
+    std::size_t count,
+    const std::function<void(std::size_t begin, std::size_t end)>& body) {
+  const std::size_t thread_count =
+      std::max(1U, std::thread::hardware_concurrency());
+  const std::size_t chunk = (count + thread_count - 1) / thread_count;
+  std::vector<std::jthread> threads;  // joined on return
+  for (std::size_t begin = 0; begin < count; begin += chunk) {
+    threads.emplace_back(body, begin, std::min(count, begin + chunk));
+  }
 }
 
 // True if all of `text` is a number, stored in `value`.
@@ -120,6 +155,8 @@ std::optional<Options> ParseArguments(std::span<char* const> arguments) {
       options.problem = value;
     } else if (argument == "--cvrplib") {
       options.cvrplib = value;
+    } else if (argument == "--result") {
+      options.result = value;
     } else if (argument == "--max-snap-m") {
       valid = ParseNumber(value, options.max_snap_m);
     } else if (argument == "--seconds") {
@@ -138,10 +175,13 @@ std::optional<Options> ParseArguments(std::span<char* const> arguments) {
   }
   const bool road = !options.graph.empty() && !options.problem.empty();
   const bool cvrplib = !options.cvrplib.empty();
-  if (options.command == "distances" && road && !cvrplib) {
+  // Only a road problem has a result.
+  if (options.command == "distances" && road && !cvrplib &&
+      options.result.empty()) {
     return options;
   }
-  if (options.command == "solve" && road != cvrplib) {
+  if (options.command == "solve" && road != cvrplib &&
+      (road || options.result.empty())) {
     return options;
   }
   return std::nullopt;
@@ -149,7 +189,9 @@ std::optional<Options> ParseArguments(std::span<char* const> arguments) {
 
 // A road problem, snapped to its graph, with its distance matrix.
 struct RoadSetup {
+  std::string graph_version;
   core::RoadGraph graph;
+  core::EdgeGeometry geometry;
   ProblemFile problem;
   std::vector<core::NodeId> stops;
   core::DistanceMatrix matrix;
@@ -157,11 +199,26 @@ struct RoadSetup {
 
 StatusOr<RoadSetup> ComputeRoadMatrix(const Options& options) {
   auto start = Clock::now();
-  VRP_ASSIGN_OR_RETURN(const std::string graph_bytes, ReadFile(options.graph));
+  const std::filesystem::path directory = options.graph;
+  VRP_ASSIGN_OR_RETURN(const std::string manifest_text,
+                       ReadFile(directory / "manifest.json"));
+  VRP_ASSIGN_OR_RETURN(const ManifestFile manifest,
+                       ParseManifestFile(manifest_text));
+  VRP_ASSIGN_OR_RETURN(const std::string graph_bytes,
+                       ReadFile(directory / manifest.graph_path));
   VRP_ASSIGN_OR_RETURN(
       core::RoadGraph graph,
       core::ParseGraphFile(std::as_bytes(std::span(graph_bytes))));
-  Print(std::format("graph: {} nodes, {} edges, read in {}", graph.NodeCount(),
+  core::EdgeGeometry geometry;
+  if (manifest.edge_geometry_path.has_value()) {
+    VRP_ASSIGN_OR_RETURN(const std::string geometry_bytes,
+                         ReadFile(directory / *manifest.edge_geometry_path));
+    VRP_ASSIGN_OR_RETURN(geometry,
+                         core::ParseEdgeGeometryFile(
+                             std::as_bytes(std::span(geometry_bytes)), graph));
+  }
+  Print(std::format("graph {}: {} nodes, {} edges, read in {}",
+                    manifest.graph_version, graph.NodeCount(),
                     graph.EdgeCount(), SecondsSince(start)));
 
   VRP_ASSIGN_OR_RETURN(const std::string problem_text,
@@ -203,7 +260,9 @@ StatusOr<RoadSetup> ComputeRoadMatrix(const Options& options) {
   VRP_ASSIGN_OR_RETURN(
       core::DistanceMatrix matrix,
       core::DistanceMatrix::Create(stops.size(), std::move(rows)));
-  return RoadSetup{.graph = std::move(graph),
+  return RoadSetup{.graph_version = manifest.graph_version,
+                   .graph = std::move(graph),
+                   .geometry = std::move(geometry),
                    .problem = std::move(problem),
                    .stops = std::move(stops),
                    .matrix = std::move(matrix)};
@@ -226,29 +285,38 @@ Status RunDistances(const Options& options) {
   return {};
 }
 
+struct SolveOutcome {
+  core::Solution solution;
+  core::RouteCost cost = 0;
+  std::vector<core::ConvergencePoint> convergence;
+};
+
 // Runs one island for `options.seconds`, printing each improvement, then
-// checks the best solution as FINALIZE does (ADR 0025).
-Status Solve(const core::DistanceMatrix& matrix, const core::Problem& problem,
-             const Options& options) {
+// checks the best solution against the matrix.
+StatusOr<SolveOutcome> Solve(const core::DistanceMatrix& matrix,
+                             const core::Problem& problem,
+                             const Options& options) {
   VRP_ASSIGN_OR_RETURN(
       core::gpu::Island island,
-      core::gpu::Island::Create(matrix, problem, {}, options.seed));
+      core::gpu::Island::Create(matrix, problem, options.island, options.seed));
   const auto start = Clock::now();
-  std::optional<core::RouteCost> reported;
+  std::vector<core::ConvergencePoint> convergence;
   while (Seconds(Clock::now() - start).count() < options.seconds) {
     VRP_RETURN_IF_ERROR(island.Step());
     if (island.Best().has_value() &&
-        (!reported.has_value() ||
-         island.Best()->evaluation.distance < *reported)) {
-      reported = island.Best()->evaluation.distance;
-      Print(std::format("{}: cost {}", SecondsSince(start), *reported));
+        (convergence.empty() ||
+         island.Best()->evaluation.distance < convergence.back().cost)) {
+      convergence.push_back({.seconds = Seconds(Clock::now() - start).count(),
+                             .cost = island.Best()->evaluation.distance});
+      Print(std::format("{}: cost {}", SecondsSince(start),
+                        convergence.back().cost));
     }
   }
   if (!island.Best().has_value()) {
     return NotFoundError("no feasible solution found");
   }
 
-  const core::Solution solution = {.routes = island.Best()->routes};
+  core::Solution solution = {.routes = island.Best()->routes};
   VRP_RETURN_IF_ERROR(core::ValidateSolution(problem, solution));
   VRP_ASSIGN_OR_RETURN(const core::RouteCost cost,
                        core::EvaluateCost(matrix, solution));
@@ -256,13 +324,56 @@ Status Solve(const core::DistanceMatrix& matrix, const core::Problem& problem,
     return core::InternalError("the solver's cost differs from the matrix's");
   }
   Print(std::format("best: {} routes, cost {}", solution.routes.size(), cost));
+  return SolveOutcome{.solution = std::move(solution),
+                      .cost = cost,
+                      .convergence = std::move(convergence)};
+}
+
+// FINALIZE (ADR 0025): routes every leg on the roads and, with `--result`,
+// writes the result artifact (ADR 0016).
+Status Finalize(const RoadSetup& setup, const SolveOutcome& outcome,
+                const Options& options) {
+  const auto start = Clock::now();
+  VRP_ASSIGN_OR_RETURN(
+      std::vector<core::ResultRoute> routes,
+      core::RouteSolution(setup.graph, setup.geometry, setup.problem.edge_cost,
+                          setup.problem.problem, setup.stops, outcome.solution,
+                          outcome.cost, ThreadedFor, [] { return false; }));
+  Print(std::format("legs routed on the roads in {}, matching the cost",
+                    SecondsSince(start)));
+  if (options.result.empty()) {
+    return {};
+  }
+
+  const std::string worker = "vrp-bench";
+  VRP_ASSIGN_OR_RETURN(std::string gpu, core::gpu::DeviceName());
+  std::vector<core::SolverParameter> parameters =
+      core::gpu::NamedParameters(options.island);
+  parameters.push_back({.name = "seconds", .value = options.seconds});
+  parameters.push_back(
+      {.name = "seed", .value = static_cast<double>(options.seed)});
+  const core::ResultFile result = {
+      .graph_version = setup.graph_version,
+      .edge_cost = setup.problem.edge_cost,
+      .stop_nodes = setup.stops,
+      .routes = std::move(routes),
+      .parameters = std::move(parameters),
+      .workers = {{.name = worker,
+                   .build = VRP_BUILD_VERSION,
+                   .gpu = std::move(gpu)}},
+      .islands = {{.worker = worker, .convergence = outcome.convergence}},
+  };
+  VRP_RETURN_IF_ERROR(WriteFile(options.result, core::WriteResultFile(result)));
+  Print("result written to " + options.result);
   return {};
 }
 
 Status RunSolve(const Options& options) {
   if (options.cvrplib.empty()) {
     VRP_ASSIGN_OR_RETURN(const RoadSetup setup, ComputeRoadMatrix(options));
-    return Solve(setup.matrix, setup.problem.problem, options);
+    VRP_ASSIGN_OR_RETURN(const SolveOutcome outcome,
+                         Solve(setup.matrix, setup.problem.problem, options));
+    return Finalize(setup, outcome, options);
   }
   VRP_ASSIGN_OR_RETURN(const std::string text, ReadFile(options.cvrplib));
   VRP_ASSIGN_OR_RETURN(const CvrplibInstance instance, ParseCvrplibFile(text));
@@ -278,7 +389,7 @@ Status RunSolve(const Options& options) {
   Print(std::format("{}: {} customers, {} vehicles of capacity {}",
                     instance.name, problem.demands.size() - 1,
                     problem.vehicle_count, problem.vehicle_capacity));
-  return Solve(instance.matrix, problem, options);
+  return Solve(instance.matrix, problem, options).GetStatus();
 }
 
 }  // namespace

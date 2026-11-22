@@ -1,0 +1,20 @@
+{
+  "schema_version": 1,
+  "graph_version": "golden-20261122-cd9e8b23",
+  "edge_cost": "length",
+  "cost": 533,
+  "stop_nodes": [0, 1, 2],
+  "routes": [
+    {"stops": [1], "cost": 222, "polyline": [[52.0000000, 21.0000000], [52.0005000, 21.0001000], [52.0010000, 21.0000000], [52.0000000, 21.0000000]]},
+    {"stops": [2], "cost": 311, "polyline": [[52.0000000, 21.0000000], [52.0000000, 21.0010000], [52.0004000, 21.0009000], [52.0008000, 21.0006000], [52.0010000, 21.0000000], [52.0000000, 21.0000000]]}
+  ],
+  "parameters": {"seconds": 1.5, "seed": 7},
+  "workers": [
+    {"name": "lab-pc-1", "build": "0.1.0", "gpu": "NVIDIA GeForce GTX 1060 6GB"},
+    {"name": "lab-pc-2", "build": "0.1.0", "gpu": "NVIDIA GeForce RTX 5050 Laptop GPU"}
+  ],
+  "islands": [
+    {"worker": "lab-pc-1", "convergence": [[0.25, 533]]},
+    {"worker": "lab-pc-2", "convergence": [[0.5, 533]]}
+  ]
+}

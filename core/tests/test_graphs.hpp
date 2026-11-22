@@ -4,6 +4,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <functional>
+#include <string_view>
 #include <vector>
 
 #include "vrp/core/graph.hpp"
@@ -24,6 +25,10 @@ RoadGraph MakeRandomGraph(std::uint32_t node_count,
 // The cheapest edge from `from` to `to`, or kNoRoute if there is none.
 Cost CheapestEdge(const RoadGraph& graph, EdgeCost cost, NodeId from,
                   NodeId to);
+
+// The bytes of the golden file at `path` in docs/formats; aborts if it cannot
+// be read, so a test cannot silently run on an empty file.
+std::vector<std::byte> ReadGoldenFile(std::string_view path);
 
 // A ParallelFor that splits [0, count) over four threads.
 void ThreadedFor(

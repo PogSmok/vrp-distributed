@@ -12,6 +12,7 @@
 #include "vrp/core/solver/evaluation.hpp"
 #include "vrp/core/solver/population.hpp"
 #include "vrp/core/solver/random.hpp"
+#include "vrp/core/solver_parameter.hpp"
 #include "vrp/core/status.hpp"
 
 namespace vrp::core::gpu {
@@ -27,6 +28,10 @@ struct IslandParameters {
   double repair_probability = 0.5;  // of retrying an infeasible child with 10x
                                     // the penalty
 };
+
+// Every field of `parameters` by name, as results record them (ADR 0028).
+[[nodiscard]] std::vector<SolverParameter> NamedParameters(
+    const IslandParameters& parameters);
 
 // One island of the solver (ADR 0018): an HGS-style memetic search whose
 // local search runs on the GPU. The task runner calls Step repeatedly,

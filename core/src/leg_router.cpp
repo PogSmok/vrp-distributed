@@ -154,15 +154,21 @@ void SequentialFor(
   body(0, count);
 }
 
-StatusOr<std::vector<Leg>> RouteLegs(const RoadGraph& graph, EdgeCost cost,
-                                     std::span<const LegQuery> legs,
-                                     const ParallelFor& parallel_for) {
+StatusOr<std::vector<Leg>> RouteLegs(
+    const RoadGraph& graph, EdgeCost cost, std::span<const LegQuery> legs,
+    const ParallelFor& parallel_for,
+    const std::function<bool()>& stop_requested) {
   // Every leg owns its own slots, so concurrent sub-ranges never share data.
   std::vector<std::optional<Leg>> results(legs.size());
   std::vector<Status> errors(legs.size());
   parallel_for(legs.size(), [&](std::size_t begin, std::size_t end) {
     LegRouter router(graph, cost);
     for (std::size_t index = begin; index < end; ++index) {
+      // The legs left out follow this one, so it is the error reported.
+      if (stop_requested()) {
+        errors[index] = CancelledError("stop requested");
+        return;
+      }
       StatusOr<Leg> leg = router.Route(legs[index].from, legs[index].to);
       if (leg.IsOk()) {
         results[index] = std::move(leg).Value();

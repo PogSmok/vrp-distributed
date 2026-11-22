@@ -88,11 +88,16 @@ void SequentialFor(
     const std::function<void(std::size_t begin, std::size_t end)>& body);
 
 // Routes every leg; element i of the result answers legs[i]. Each sub-range
-// gets its own LegRouter. Fails with the error of the lowest-numbered failing
-// leg, or with kInternal if parallel_for skipped a leg.
-StatusOr<std::vector<Leg>> RouteLegs(const RoadGraph& graph, EdgeCost cost,
-                                     std::span<const LegQuery> legs,
-                                     const ParallelFor& parallel_for);
+// gets its own LegRouter, which allocates 24 bytes per graph node, so
+// `parallel_for` should make one sub-range per thread, not many small ones.
+// `stop_requested` is checked before each leg
+// (ADR 0024), possibly from several threads at once. Fails with the error of
+// the lowest-numbered failing leg, kCancelled if `stop_requested` returned
+// true, or with kInternal if parallel_for skipped a leg.
+StatusOr<std::vector<Leg>> RouteLegs(
+    const RoadGraph& graph, EdgeCost cost, std::span<const LegQuery> legs,
+    const ParallelFor& parallel_for,
+    const std::function<bool()>& stop_requested);
 
 }  // namespace vrp::core
 

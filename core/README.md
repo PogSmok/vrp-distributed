@@ -12,9 +12,12 @@ benchmark CLI build on it.
 | `types.hpp`           | Integer costs, node IDs, edge cost choice                                               | 0020       |
 | `graph.hpp`           | Immutable road graph in compressed sparse rows, both directions                         | 0005       |
 | `graph_file.hpp`      | Parses `graph.bin` (`docs/formats/graph.md`) into a `RoadGraph`, with the reader checks | 0027       |
+| `edge_geometry.hpp`   | Each edge's road shape, parsed from `edge_geometry.bin` with the reader checks          | 0027       |
 | `distance_matrix.hpp` | `(n+1) × (n+1)` asymmetric cost matrix, depot first                                     | 0011       |
 | `solution.hpp`        | Problem and solution checks, route cost evaluation                                      | 0006, 0025 |
 | `leg_router.hpp`      | Bidirectional Dijkstra for route geometry; batched over a caller-supplied `ParallelFor` | 0025       |
+| `result.hpp`          | FINALIZE: checks a solution, routes its legs, matches the cost, builds the polylines    | 0025       |
+| `result_file.hpp`     | Writes the result artifact (`docs/formats/result.md`)                                   | 0016, 0028 |
 | `geo.hpp`             | Great-circle distance and position checks                                               | 0006       |
 | `snapping.hpp`        | Snaps stops to their nearest nodes through a grid index; matches the reference exactly  | 0006       |
 | `reference/`          | CPU oracles: Dijkstra, distance matrix, brute-force snapping. Never used in production  | 0023       |

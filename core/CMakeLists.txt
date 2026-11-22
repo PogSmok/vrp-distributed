@@ -2,13 +2,17 @@
 # vrp-core: GPU algorithms and their CPU references
 # -------------------------
 add_library(vrp_core STATIC
+    src/binary_container.cpp
     src/distance_matrix.cpp
+    src/edge_geometry.cpp
     src/geo.cpp
     src/graph.cpp
     src/graph_file.cpp
     src/leg_router.cpp
     src/reference/dijkstra.cpp
     src/reference/snapping.cpp
+    src/result.cpp
+    src/result_file.cpp
     src/snapping.cpp
     src/solution.cpp
     src/solver/crossover.cpp
@@ -31,6 +35,7 @@ vrp_enable_warnings(vrp_core)
 # tests without CUDA (ADR 0023).
 if(VRP_ENABLE_CUDA)
     add_library(vrp_core_gpu STATIC
+        src/gpu/device.cpp
         src/gpu/device_buffer.cu
         src/gpu/device_graph.cu
         src/gpu/distance_batch.cu
