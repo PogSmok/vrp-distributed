@@ -5,6 +5,7 @@ add_library(vrp_core STATIC
     src/distance_matrix.cpp
     src/geo.cpp
     src/graph.cpp
+    src/graph_file.cpp
     src/leg_router.cpp
     src/reference/dijkstra.cpp
     src/reference/snapping.cpp
