@@ -17,8 +17,8 @@ struct DeviceFree {
 template <typename T>
 struct DeviceBuffer {
   DeviceBuffer() = default;
-  DeviceBuffer(std::unique_ptr<T, DeviceFree> data, std::size_t size)
-      : data(std::move(data)), size(size) {}
+  DeviceBuffer(std::unique_ptr<T, DeviceFree> memory, std::size_t count)
+      : data(std::move(memory)), size(count) {}
   DeviceBuffer(DeviceBuffer&& other) noexcept
       : data(std::move(other.data)), size(std::exchange(other.size, 0)) {}
   DeviceBuffer& operator=(DeviceBuffer&& other) noexcept {
