@@ -4,9 +4,13 @@
 #include <cstddef>
 #include <cstdint>
 #include <cstdlib>
+#include <fstream>
 #include <functional>
+#include <ios>
 #include <random>
 #include <span>
+#include <string>
+#include <string_view>
 #include <thread>
 #include <utility>
 #include <vector>
@@ -69,6 +73,19 @@ Cost CheapestEdge(const RoadGraph& graph, EdgeCost cost, NodeId from,
     }
   }
   return cheapest;
+}
+
+std::vector<std::byte> ReadGoldenFile(std::string_view path) {
+  std::ifstream file(std::string(VRP_GOLDEN_DIR "/").append(path),
+                     std::ios::binary | std::ios::ate);
+  if (!file) {
+    std::abort();
+  }
+  std::vector<std::byte> data(static_cast<std::size_t>(file.tellg()));
+  file.seekg(0);
+  file.read(reinterpret_cast<char*>(data.data()),
+            static_cast<std::streamsize>(data.size()));
+  return data;
 }
 
 void ThreadedFor(

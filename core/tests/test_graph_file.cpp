@@ -4,15 +4,14 @@
 
 #include <cstddef>
 #include <cstdint>
-#include <cstdlib>
 #include <cstring>
-#include <fstream>
 #include <functional>
-#include <ios>
 #include <span>
 #include <string>
 #include <vector>
 
+#include "test_graphs.hpp"
+#include "vrp/core/edge_geometry.hpp"
 #include "vrp/core/graph.hpp"
 #include "vrp/core/status.hpp"
 #include "vrp/core/types.hpp"
@@ -20,19 +19,9 @@
 namespace vrp::core {
 namespace {
 
-// The golden graph.bin of docs/formats/graph.md; aborts if it cannot be read,
-// so a test cannot silently run on an empty file.
+// The golden graph.bin of docs/formats/graph.md.
 std::vector<std::byte> GoldenGraphFile() {
-  std::ifstream file(VRP_GOLDEN_DIR "/graph.bin",
-                     std::ios::binary | std::ios::ate);
-  if (!file) {
-    std::abort();
-  }
-  std::vector<std::byte> data(static_cast<std::size_t>(file.tellg()));
-  file.seekg(0);
-  file.read(reinterpret_cast<char*>(data.data()),
-            static_cast<std::streamsize>(data.size()));
-  return data;
+  return test_support::ReadGoldenFile("golden-v1/graph.bin");
 }
 
 template <typename T>
@@ -125,6 +114,58 @@ TEST(ParseGraphFileTest, RejectsFilesThatBreakTheFormat) {
     Bytes data = GoldenGraphFile();
     corruption.apply(data);
     const Status status = ParseGraphFile(data).GetStatus();
+    EXPECT_EQ(status.Code(), StatusCode::kInvalidArgument)
+        << corruption.message;
+    EXPECT_NE(status.Message().find(corruption.message), std::string::npos)
+        << status.Message();
+  }
+}
+
+// The shape points the spec lists for the golden edge_geometry.bin.
+TEST(ParseEdgeGeometryFileTest, ReadsTheGoldenFile) {
+  const RoadGraph graph = ParseGraphFile(GoldenGraphFile()).Value();
+  const EdgeGeometry geometry =
+      ParseEdgeGeometryFile(
+          test_support::ReadGoldenFile("golden-v1/edge_geometry.bin"), graph)
+          .Value();
+  std::vector<std::size_t> counts(graph.EdgeCount());
+  for (std::uint32_t edge = 0; edge < counts.size(); ++edge) {
+    counts[edge] = geometry.Shape(edge).size();
+  }
+  EXPECT_EQ(counts, (std::vector<std::size_t>{1, 0, 0, 2}));
+  EXPECT_DOUBLE_EQ(geometry.Shape(0)[0].latitude, 52.0005);
+  EXPECT_DOUBLE_EQ(geometry.Shape(3)[1].longitude, 21.0006);
+}
+
+// The checks that `edge_geometry.bin` adds to those of `graph.bin`, whose
+// shared container checks are tested above.
+TEST(ParseEdgeGeometryFileTest, RejectsFilesThatBreakTheFormat) {
+  using Bytes = std::vector<std::byte>;
+  struct Corruption {
+    std::string message;
+    std::function<void(Bytes&)> apply;
+  };
+  const std::vector<Corruption> corruptions = {
+      {.message = "magic number is not VRPSHAPE",
+       .apply = [](Bytes& data) { data[0] = std::byte{'X'}; }},
+      {.message = "differ from the graph's",
+       .apply = [](Bytes& data) { Store<std::uint32_t>(data, 0x14, 5); }},
+      {.message = "start at 0",
+       .apply = [](Bytes& data) { Store<std::uint32_t>(data, 0x68, 1); }},
+      {.message = "never decrease",
+       .apply = [](Bytes& data) { Store<std::uint32_t>(data, 0x6c, 2); }},
+      // The last offset is the shape point count.
+      {.message = "SLAT has 3 elements, expected 2",
+       .apply = [](Bytes& data) { Store<std::uint32_t>(data, 0x78, 2); }},
+      {.message = "invalid position",
+       .apply =
+           [](Bytes& data) { Store<std::int32_t>(data, 0x80, 900'000'001); }},
+  };
+  const RoadGraph graph = ParseGraphFile(GoldenGraphFile()).Value();
+  for (const Corruption& corruption : corruptions) {
+    Bytes data = test_support::ReadGoldenFile("golden-v1/edge_geometry.bin");
+    corruption.apply(data);
+    const Status status = ParseEdgeGeometryFile(data, graph).GetStatus();
     EXPECT_EQ(status.Code(), StatusCode::kInvalidArgument)
         << corruption.message;
     EXPECT_NE(status.Message().find(corruption.message), std::string::npos)

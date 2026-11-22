@@ -2,6 +2,7 @@
 
 #include <gtest/gtest.h>
 
+#include <atomic>
 #include <cstddef>
 #include <cstdint>
 #include <functional>
@@ -86,6 +87,7 @@ TEST(LegRouterTest, ReportsAPathCostThatDoesNotFit) {
 }
 
 TEST(RouteLegsTest, ThreadedEqualsSequentialAndReportsTheFirstFailure) {
+  const auto never = [] { return false; };
   const RoadGraph graph = MakeRandomGraph(200, 600, 42);
   std::vector<LegQuery> legs;
   for (NodeId from = 0; from < graph.NodeCount(); from += 13) {
@@ -94,9 +96,9 @@ TEST(RouteLegsTest, ThreadedEqualsSequentialAndReportsTheFirstFailure) {
     }
   }
   const std::vector<Leg> sequential =
-      RouteLegs(graph, EdgeCost::kTime, legs, SequentialFor).Value();
+      RouteLegs(graph, EdgeCost::kTime, legs, SequentialFor, never).Value();
   const std::vector<Leg> threaded =
-      RouteLegs(graph, EdgeCost::kTime, legs, ThreadedFor).Value();
+      RouteLegs(graph, EdgeCost::kTime, legs, ThreadedFor, never).Value();
   ASSERT_EQ(threaded.size(), legs.size());
   for (std::size_t index = 0; index < legs.size(); ++index) {
     EXPECT_EQ(threaded[index].cost, sequential[index].cost);
@@ -106,7 +108,7 @@ TEST(RouteLegsTest, ThreadedEqualsSequentialAndReportsTheFirstFailure) {
   const std::vector<LegQuery> failing = {
       {.from = 0, .to = 1}, {.from = 0, .to = 999}, {.from = 0, .to = 1000}};
   const StatusOr<std::vector<Leg>> routed =
-      RouteLegs(graph, EdgeCost::kTime, failing, ThreadedFor);
+      RouteLegs(graph, EdgeCost::kTime, failing, ThreadedFor, never);
   EXPECT_EQ(routed.GetStatus().Message().rfind("leg 1: ", 0), 0U);
 
   // A ParallelFor that skips a range must be detected, not trusted.
@@ -115,9 +117,18 @@ TEST(RouteLegsTest, ThreadedEqualsSequentialAndReportsTheFirstFailure) {
          const std::function<void(std::size_t, std::size_t)>& body) {
         body(0, 1);
       };
-  EXPECT_EQ(
-      RouteLegs(graph, EdgeCost::kTime, failing, first_only).GetStatus().Code(),
-      StatusCode::kInternal);
+  EXPECT_EQ(RouteLegs(graph, EdgeCost::kTime, failing, first_only, never)
+                .GetStatus()
+                .Code(),
+            StatusCode::kInternal);
+
+  // A stop midway, while every thread is routing, is not a skipped leg.
+  std::atomic<int> checks = 0;
+  const auto stop_later = [&] { return ++checks > 100; };
+  EXPECT_EQ(RouteLegs(graph, EdgeCost::kTime, legs, ThreadedFor, stop_later)
+                .GetStatus()
+                .Code(),
+            StatusCode::kCancelled);
 }
 
 }  // namespace

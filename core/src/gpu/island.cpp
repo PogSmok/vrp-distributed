@@ -15,6 +15,7 @@
 #include "vrp/core/solver/evaluation.hpp"
 #include "vrp/core/solver/population.hpp"
 #include "vrp/core/solver/split.hpp"
+#include "vrp/core/solver_parameter.hpp"
 #include "vrp/core/status.hpp"
 #include "vrp/core/status_macros.hpp"
 #include "vrp/core/types.hpp"
@@ -42,6 +43,32 @@ double InitialPenalty(const DistanceMatrix& matrix, const Problem& problem) {
 }
 
 }  // namespace
+
+// A new field changes the size: list it below, then update the size.
+static_assert(sizeof(IslandParameters) == 80);
+
+std::vector<SolverParameter> NamedParameters(
+    const IslandParameters& parameters) {
+  const auto value = [](std::size_t count) {
+    return static_cast<double>(count);
+  };
+  const solver::PopulationParameters& population = parameters.population;
+  return {
+      {.name = "population.min_size", .value = value(population.min_size)},
+      {.name = "population.generation_size",
+       .value = value(population.generation_size)},
+      {.name = "population.elite_count",
+       .value = value(population.elite_count)},
+      {.name = "population.close_count",
+       .value = value(population.close_count)},
+      {.name = "neighbor_count", .value = value(parameters.neighbor_count)},
+      {.name = "batch_size", .value = value(parameters.batch_size)},
+      {.name = "initial_size", .value = value(parameters.initial_size)},
+      {.name = "target_feasible", .value = parameters.target_feasible},
+      {.name = "penalty_interval", .value = value(parameters.penalty_interval)},
+      {.name = "repair_probability", .value = parameters.repair_probability},
+  };
+}
 
 StatusOr<Island> Island::Create(const DistanceMatrix& matrix,
                                 const Problem& problem,

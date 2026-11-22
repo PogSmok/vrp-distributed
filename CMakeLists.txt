@@ -70,7 +70,7 @@ endfunction()
 include(FetchContent)
 
 # -------------------------
-# nlohmann/json, for vrp-bench's problem files; vrp-core does not use it
+# nlohmann/json, for vrp-bench's input files; vrp-core does not use it
 # -------------------------
 FetchContent_Declare(
     nlohmann_json

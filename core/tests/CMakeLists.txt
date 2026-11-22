@@ -7,6 +7,7 @@ add_executable(vrp_core_tests
     test_graph_file.cpp
     test_graphs.cpp
     test_leg_router.cpp
+    test_result.cpp
     test_snapping.cpp
     test_solution.cpp
     test_status_macros.cpp
@@ -20,8 +21,10 @@ add_executable(vrp_core_tests
 
 target_include_directories(vrp_core_tests PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
 
+# The spec's golden files, which test_graphs.cpp reads.
+set(VRP_GOLDEN_DIR "${PROJECT_SOURCE_DIR}/docs/formats")
 target_compile_definitions(vrp_core_tests PRIVATE
-    VRP_GOLDEN_DIR="${PROJECT_SOURCE_DIR}/docs/formats/golden-v1"
+    VRP_GOLDEN_DIR="${VRP_GOLDEN_DIR}"
 )
 
 target_link_libraries(vrp_core_tests
@@ -49,6 +52,9 @@ if(VRP_ENABLE_CUDA)
     )
 
     target_include_directories(vrp_core_gpu_tests PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
+    target_compile_definitions(vrp_core_gpu_tests PRIVATE
+        VRP_GOLDEN_DIR="${VRP_GOLDEN_DIR}"
+    )
 
     target_link_libraries(vrp_core_gpu_tests
         PRIVATE
