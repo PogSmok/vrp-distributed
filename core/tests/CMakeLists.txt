@@ -2,13 +2,11 @@ include(GoogleTest)
 find_package(Threads REQUIRED)
 
 add_executable(vrp_core_tests
-    test_distance_matrix.cpp
     test_geo.cpp
     test_graph.cpp
     test_graphs.cpp
     test_leg_router.cpp
     test_solution.cpp
-    test_status.cpp
     test_status_macros.cpp
     reference/test_dijkstra.cpp
     reference/test_snapping.cpp

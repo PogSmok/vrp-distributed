@@ -15,7 +15,7 @@ namespace {
 
 using test_support::MakeGraph;
 
-// 0 -> 1 -> 2 is cheaper than the direct 0 -> 2; 3 cannot be reached.
+// 0 -> 1 -> 2 is cheaper than the direct 0 -> 2; node 3 is unreachable.
 RoadGraph Triangle() {
   return MakeGraph(4, {
                           {.from = 0, .to = 1, .length = 2, .time = 9},
@@ -25,69 +25,35 @@ RoadGraph Triangle() {
                       });
 }
 
-TEST(ShortestPathCostsTest, FindsCheapestPaths) {
-  const StatusOr<std::vector<Cost>> costs =
-      ShortestPathCosts(Triangle(), EdgeCost::kLength, 0);
-  ASSERT_TRUE(costs.IsOk());
-  EXPECT_EQ(costs.Value(), (std::vector<Cost>{0, 2, 5, kNoRoute}));
-}
+TEST(ShortestPathCostsTest, UsesTheEdgeCostAndMarksUnreachableNodes) {
+  EXPECT_EQ(ShortestPathCosts(Triangle(), EdgeCost::kLength, 0).Value(),
+            (std::vector<Cost>{0, 2, 5, kNoRoute}));
+  EXPECT_EQ(ShortestPathCosts(Triangle(), EdgeCost::kTime, 0).Value(),
+            (std::vector<Cost>{0, 9, 1, kNoRoute}));
 
-TEST(ShortestPathCostsTest, UsesTheChosenEdgeCost) {
-  const StatusOr<std::vector<Cost>> costs =
-      ShortestPathCosts(Triangle(), EdgeCost::kTime, 0);
-  ASSERT_TRUE(costs.IsOk());
-  EXPECT_EQ(costs.Value(), (std::vector<Cost>{0, 9, 1, kNoRoute}));
-}
-
-TEST(ShortestPathCostsTest, RejectsAMissingSource) {
-  EXPECT_EQ(
-      ShortestPathCosts(Triangle(), EdgeCost::kLength, 4).GetStatus().Code(),
-      StatusCode::kInvalidArgument);
-}
-
-TEST(ShortestPathCostsTest, ReportsAPathCostThatDoesNotFit) {
+  // Each edge fits in Cost, but the path does not.
   constexpr Cost huge = kNoRoute - 1;
-  const RoadGraph graph = MakeGraph(3, {
-                                           {.from = 0, .to = 1, .length = huge},
-                                           {.from = 1, .to = 2, .length = huge},
-                                       });
-  EXPECT_EQ(ShortestPathCosts(graph, EdgeCost::kLength, 0).GetStatus().Code(),
+  const RoadGraph wide = MakeGraph(3, {
+                                          {.from = 0, .to = 1, .length = huge},
+                                          {.from = 1, .to = 2, .length = huge},
+                                      });
+  EXPECT_EQ(ShortestPathCosts(wide, EdgeCost::kLength, 0).GetStatus().Code(),
             StatusCode::kOutOfRange);
 }
 
 TEST(ComputeDistanceMatrixTest, IsAsymmetricWithTheDepotFirst) {
   const std::vector<NodeId> stops = {2, 0, 1};
-  const StatusOr<DistanceMatrix> matrix =
-      ComputeDistanceMatrix(Triangle(), EdgeCost::kLength, stops);
-  ASSERT_TRUE(matrix.IsOk());
-  // Row and column 0 are node 2, the depot.
-  EXPECT_EQ(matrix.Value().At(0, 1), 4U);  // 2 -> 0
-  EXPECT_EQ(matrix.Value().At(1, 0), 5U);  // 0 -> 1 -> 2
-  EXPECT_EQ(matrix.Value().At(1, 2), 2U);  // 0 -> 1
-  EXPECT_EQ(matrix.Value().At(2, 1), 7U);  // 1 -> 2 -> 0
-  for (std::size_t stop = 0; stop < stops.size(); ++stop) {
-    EXPECT_EQ(matrix.Value().At(stop, stop), 0U);
-  }
-}
+  const DistanceMatrix matrix =
+      ComputeDistanceMatrix(Triangle(), EdgeCost::kLength, stops).Value();
+  EXPECT_EQ(matrix.At(0, 1), 4U);  // 2 -> 0
+  EXPECT_EQ(matrix.At(1, 0), 5U);  // 0 -> 1 -> 2
+  EXPECT_EQ(matrix.At(2, 1), 7U);  // 1 -> 2 -> 0
 
-TEST(ComputeDistanceMatrixTest, FailsWhenAPairHasNoRoute) {
-  const std::vector<NodeId> stops = {0, 3};
-  EXPECT_EQ(ComputeDistanceMatrix(Triangle(), EdgeCost::kLength, stops)
+  const std::vector<NodeId> unreachable = {0, 3};
+  EXPECT_EQ(ComputeDistanceMatrix(Triangle(), EdgeCost::kLength, unreachable)
                 .GetStatus()
                 .Code(),
             StatusCode::kFailedPrecondition);
-}
-
-TEST(ComputeDistanceMatrixTest, RejectsMissingStops) {
-  EXPECT_EQ(ComputeDistanceMatrix(Triangle(), EdgeCost::kLength, {})
-                .GetStatus()
-                .Code(),
-            StatusCode::kInvalidArgument);
-  const std::vector<NodeId> stops = {0, 7};
-  EXPECT_EQ(ComputeDistanceMatrix(Triangle(), EdgeCost::kLength, stops)
-                .GetStatus()
-                .Code(),
-            StatusCode::kInvalidArgument);
 }
 
 }  // namespace

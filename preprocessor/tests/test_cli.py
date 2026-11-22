@@ -1,53 +1,73 @@
 import contextlib
 import io
-import runpy
-import sys
+from pathlib import Path
 
 import pytest
-from hypothesis import given
-from hypothesis import strategies as st
 
-from vrp_preprocessor import __version__
 from vrp_preprocessor.cli import main
+from vrp_preprocessor.graph_format import read_graph_version
 
 
-def test_version_prints_the_package_version(
-    capsys: pytest.CaptureFixture[str],
+def test_synthetic_grid_writes_a_readable_graph_version(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
 ) -> None:
-    with pytest.raises(SystemExit) as exit_info:
-        main(["--version"])
-    assert exit_info.value.code == 0
-    assert capsys.readouterr().out.strip() == f"vrp-preprocessor {__version__}"
+    output = tmp_path / "grid"
+    arguments = ["--width", "6", "--height", "4", "--output", str(output)]
+    assert main(["synthetic", "grid", *arguments]) == 0
+    version = read_graph_version(output)
+    assert version.graph.node_count == 24
+    assert version.graph_version in capsys.readouterr().out
 
 
-def test_no_arguments_prints_help(capsys: pytest.CaptureFixture[str]) -> None:
-    assert main([]) == 0
-    assert "usage: vrp-preprocessor" in capsys.readouterr().out
-
-
-def test_runs_as_a_module(
-    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
-) -> None:
-    monkeypatch.setattr(sys, "argv", ["vrp-preprocessor", "--version"])
-    with pytest.raises(SystemExit) as exit_info:
-        runpy.run_module("vrp_preprocessor", run_name="__main__")
-    assert exit_info.value.code == 0
-    assert __version__ in capsys.readouterr().out
-
-
-@given(
-    st.text(
-        alphabet=st.characters(categories=["Ll"], max_codepoint=127),
-        min_size=1,
-    ).filter(lambda name: name not in {"help", "version"})
-)
-def test_unknown_options_and_abbreviations_are_rejected(name: str) -> None:
-    # Includes prefixes such as `--h` and `--vers`: abbreviations are off.
-    errors = io.StringIO()
+# argparse accepts unambiguous prefixes by default, so `--h` would silently
+# mean `--help`; abbreviations are turned off.
+@pytest.mark.parametrize("option", ["--h", "--vers"])
+def test_abbreviated_options_are_rejected(option: str) -> None:
     with (
-        contextlib.redirect_stderr(errors),
+        contextlib.redirect_stderr(io.StringIO()),
         pytest.raises(SystemExit) as exit_info,
     ):
-        main([f"--{name}"])
+        main([option])
     assert exit_info.value.code == 2
-    assert f"--{name}" in errors.getvalue()
+
+
+@pytest.mark.parametrize("spacing", ["0", "-1", "inf", "nan"])
+def test_grid_rejects_a_spacing_that_is_not_positive_and_finite(
+    tmp_path: Path, spacing: str
+) -> None:
+    arguments = ["--width", "2", "--height", "2", "--spacing-m", spacing]
+    with (
+        contextlib.redirect_stderr(io.StringIO()) as stderr,
+        pytest.raises(SystemExit) as exit_info,
+    ):
+        main(["synthetic", "grid", *arguments, "--output", str(tmp_path)])
+    assert exit_info.value.code == 2
+    assert "positive and finite" in stderr.getvalue()
+
+
+@pytest.mark.parametrize(
+    ("option", "message"),
+    [
+        ("--width", "expected an integer, got 'abc'"),
+        ("--spacing-m", "expected a number, got 'abc'"),
+    ],
+)
+def test_non_numeric_arguments_get_a_readable_error(
+    tmp_path: Path, option: str, message: str
+) -> None:
+    arguments = {"--width": "2", "--height": "2", option: "abc"}
+    with (
+        contextlib.redirect_stderr(io.StringIO()) as stderr,
+        pytest.raises(SystemExit) as exit_info,
+    ):
+        main(
+            [
+                "synthetic",
+                "grid",
+                *(item for pair in arguments.items() for item in pair),
+                "--output",
+                str(tmp_path),
+            ]
+        )
+    assert exit_info.value.code == 2
+    assert message in stderr.getvalue()

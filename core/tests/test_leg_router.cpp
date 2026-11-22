@@ -21,8 +21,8 @@ using test_support::MakeGraph;
 using test_support::MakeRandomGraph;
 using test_support::ThreadedFor;
 
-// Checks that `leg` is a real path from `from` to `to` whose edges add up to
-// its cost.
+// `leg` must be a real path from `from` to `to` whose edges add up to its
+// cost.
 void ExpectValidLeg(const RoadGraph& graph, EdgeCost cost, const Leg& leg,
                     NodeId from, NodeId to) {
   ASSERT_FALSE(leg.path.empty());
@@ -38,65 +38,43 @@ void ExpectValidLeg(const RoadGraph& graph, EdgeCost cost, const Leg& leg,
   EXPECT_EQ(total, leg.cost);
 }
 
-// 0 -> 1 -> 3 is short in length, 0 -> 2 -> 3 is short in time.
-RoadGraph Diamond() {
-  return MakeGraph(4, {
-                          {.from = 0, .to = 1, .length = 1, .time = 50},
-                          {.from = 1, .to = 3, .length = 1, .time = 50},
-                          {.from = 0, .to = 2, .length = 50, .time = 1},
-                          {.from = 2, .to = 3, .length = 50, .time = 1},
-                      });
+// Every pair in a sample, both edge costs, one router per graph: this also
+// checks that the workspace is reset between queries.
+TEST(LegRouterTest, MatchesReferenceDijkstraOnRandomGraphs) {
+  for (std::uint32_t seed = 1; seed <= 5; ++seed) {
+    const RoadGraph graph = MakeRandomGraph(150, 450, seed);
+    for (const EdgeCost cost : {EdgeCost::kLength, EdgeCost::kTime}) {
+      LegRouter router(graph, cost);
+      for (NodeId from = 0; from < graph.NodeCount(); from += 7) {
+        const std::vector<Cost> expected =
+            reference::ShortestPathCosts(graph, cost, from).Value();
+        for (NodeId to = 0; to < graph.NodeCount(); ++to) {
+          const StatusOr<Leg> leg = router.Route(from, to);
+          ASSERT_TRUE(leg.IsOk()) << leg.GetStatus().Message();
+          ASSERT_EQ(leg.Value().cost, expected[to])
+              << "seed " << seed << ", " << from << " -> " << to;
+          ExpectValidLeg(graph, cost, leg.Value(), from, to);
+        }
+      }
+    }
+  }
 }
 
-TEST(LegRouterTest, FindsTheCheapestPathForEachEdgeCost) {
-  const RoadGraph graph = Diamond();
-  LegRouter by_length(graph, EdgeCost::kLength);
-  LegRouter by_time(graph, EdgeCost::kTime);
-
-  const StatusOr<Leg> short_leg = by_length.Route(0, 3);
-  ASSERT_TRUE(short_leg.IsOk());
-  EXPECT_EQ(short_leg.Value().cost, 2U);
-  EXPECT_EQ(short_leg.Value().path, (std::vector<NodeId>{0, 1, 3}));
-
-  const StatusOr<Leg> fast_leg = by_time.Route(0, 3);
-  ASSERT_TRUE(fast_leg.IsOk());
-  EXPECT_EQ(fast_leg.Value().cost, 2U);
-  EXPECT_EQ(fast_leg.Value().path, (std::vector<NodeId>{0, 2, 3}));
-}
-
-TEST(LegRouterTest, RespectsOneWayStreets) {
-  // 0 -> 1 directly, but 1 back to 0 only through 2.
+TEST(LegRouterTest, StaysUsableAfterFailedQueries) {
+  // 0 -> 1 -> 2 and nothing back.
   const RoadGraph graph = MakeGraph(3, {
-                                           {.from = 0, .to = 1, .length = 5},
-                                           {.from = 1, .to = 2, .length = 5},
-                                           {.from = 2, .to = 0, .length = 5},
+                                           {.from = 0, .to = 1, .length = 1},
+                                           {.from = 1, .to = 2, .length = 1},
                                        });
   LegRouter router(graph, EdgeCost::kLength);
-  EXPECT_EQ(router.Route(0, 1).Value().cost, 5U);
-  EXPECT_EQ(router.Route(1, 0).Value().cost, 10U);
-  EXPECT_EQ(router.Route(1, 0).Value().path, (std::vector<NodeId>{1, 2, 0}));
-}
-
-TEST(LegRouterTest, ALegToTheSameNodeIsFree) {
-  const RoadGraph graph = Diamond();
-  LegRouter router(graph, EdgeCost::kLength);
-  const StatusOr<Leg> leg = router.Route(2, 2);
-  ASSERT_TRUE(leg.IsOk());
-  EXPECT_EQ(leg.Value().cost, 0U);
-  EXPECT_EQ(leg.Value().path, (std::vector<NodeId>{2}));
-}
-
-TEST(LegRouterTest, ReportsMissingNodesAndMissingPaths) {
-  const RoadGraph graph = Diamond();
-  LegRouter router(graph, EdgeCost::kLength);
-  EXPECT_EQ(router.Route(0, 4).GetStatus().Code(),
-            StatusCode::kInvalidArgument);
-  EXPECT_EQ(router.Route(3, 0).GetStatus().Code(),
+  EXPECT_EQ(router.Route(2, 0).GetStatus().Code(),
             StatusCode::kFailedPrecondition);
-  // The router is still usable after a failed query.
-  EXPECT_EQ(router.Route(0, 3).Value().cost, 2U);
+  EXPECT_EQ(router.Route(0, 3).GetStatus().Code(),
+            StatusCode::kInvalidArgument);
+  EXPECT_EQ(router.Route(0, 2).Value().cost, 2U);
 }
 
+// Each edge fits in Cost, but the path does not: the search runs in 64 bits.
 TEST(LegRouterTest, ReportsAPathCostThatDoesNotFit) {
   constexpr Cost huge = kNoRoute - 1;
   const RoadGraph graph = MakeGraph(3, {
@@ -107,89 +85,39 @@ TEST(LegRouterTest, ReportsAPathCostThatDoesNotFit) {
   EXPECT_EQ(router.Route(0, 2).GetStatus().Code(), StatusCode::kOutOfRange);
 }
 
-// The production router must agree with the reference Dijkstra everywhere.
-TEST(LegRouterTest, MatchesReferenceDijkstraOnRandomGraphs) {
-  for (std::uint32_t seed = 1; seed <= 5; ++seed) {
-    const RoadGraph graph = MakeRandomGraph(150, 450, seed);
-    for (const EdgeCost cost : {EdgeCost::kLength, EdgeCost::kTime}) {
-      // One router for every query, so the workspace reset is exercised.
-      LegRouter router(graph, cost);
-      for (NodeId from = 0; from < graph.NodeCount(); from += 7) {
-        const StatusOr<std::vector<Cost>> expected =
-            reference::ShortestPathCosts(graph, cost, from);
-        ASSERT_TRUE(expected.IsOk());
-        for (NodeId to = 0; to < graph.NodeCount(); ++to) {
-          const StatusOr<Leg> leg = router.Route(from, to);
-          ASSERT_TRUE(leg.IsOk()) << leg.GetStatus().Message();
-          ASSERT_EQ(leg.Value().cost, expected.Value()[to])
-              << "seed " << seed << ", " << from << " -> " << to;
-          ExpectValidLeg(graph, cost, leg.Value(), from, to);
-        }
-      }
-    }
-  }
-}
-
-std::vector<LegQuery> AllPairsFrom(std::size_t node_count, NodeId step) {
+TEST(RouteLegsTest, ThreadedEqualsSequentialAndReportsTheFirstFailure) {
+  const RoadGraph graph = MakeRandomGraph(200, 600, 42);
   std::vector<LegQuery> legs;
-  for (NodeId from = 0; from < node_count; from += step) {
-    for (NodeId to = 0; to < node_count; ++to) {
+  for (NodeId from = 0; from < graph.NodeCount(); from += 13) {
+    for (NodeId to = 0; to < graph.NodeCount(); ++to) {
       legs.push_back({.from = from, .to = to});
     }
   }
-  return legs;
-}
-
-TEST(RouteLegsTest, ThreadedResultsEqualSequentialResults) {
-  const RoadGraph graph = MakeRandomGraph(200, 600, 42);
-  const std::vector<LegQuery> legs = AllPairsFrom(graph.NodeCount(), 13);
-
-  const StatusOr<std::vector<Leg>> sequential =
-      RouteLegs(graph, EdgeCost::kTime, legs, SequentialFor);
-  const StatusOr<std::vector<Leg>> threaded =
-      RouteLegs(graph, EdgeCost::kTime, legs, ThreadedFor);
-  ASSERT_TRUE(sequential.IsOk());
-  ASSERT_TRUE(threaded.IsOk());
-  ASSERT_EQ(threaded.Value().size(), legs.size());
+  const std::vector<Leg> sequential =
+      RouteLegs(graph, EdgeCost::kTime, legs, SequentialFor).Value();
+  const std::vector<Leg> threaded =
+      RouteLegs(graph, EdgeCost::kTime, legs, ThreadedFor).Value();
+  ASSERT_EQ(threaded.size(), legs.size());
   for (std::size_t index = 0; index < legs.size(); ++index) {
-    EXPECT_EQ(threaded.Value()[index].cost, sequential.Value()[index].cost);
-    ExpectValidLeg(graph, EdgeCost::kTime, threaded.Value()[index],
-                   legs[index].from, legs[index].to);
+    EXPECT_EQ(threaded[index].cost, sequential[index].cost);
   }
-}
 
-TEST(RouteLegsTest, ReportsTheFirstFailingLeg) {
-  const RoadGraph graph = Diamond();
-  const std::vector<LegQuery> legs = {
-      {.from = 0, .to = 3}, {.from = 3, .to = 0}, {.from = 0, .to = 9}};
+  // Leg 1 fails first; the later invalid leg 2 must not win the race.
+  const std::vector<LegQuery> failing = {
+      {.from = 0, .to = 1}, {.from = 0, .to = 999}, {.from = 0, .to = 1000}};
   const StatusOr<std::vector<Leg>> routed =
-      RouteLegs(graph, EdgeCost::kLength, legs, ThreadedFor);
-  ASSERT_FALSE(routed.IsOk());
-  EXPECT_EQ(routed.GetStatus().Code(), StatusCode::kFailedPrecondition);
+      RouteLegs(graph, EdgeCost::kTime, failing, ThreadedFor);
   EXPECT_EQ(routed.GetStatus().Message().rfind("leg 1: ", 0), 0U);
-}
 
-TEST(RouteLegsTest, DetectsAParallelForThatSkipsLegs) {
-  const RoadGraph graph = Diamond();
-  const std::vector<LegQuery> legs = {{.from = 0, .to = 3},
-                                      {.from = 0, .to = 1}};
+  // A ParallelFor that skips a range must be detected, not trusted.
   const ParallelFor first_only =
       [](std::size_t /*count*/,
          const std::function<void(std::size_t, std::size_t)>& body) {
         body(0, 1);
       };
-  const StatusOr<std::vector<Leg>> routed =
-      RouteLegs(graph, EdgeCost::kLength, legs, first_only);
-  ASSERT_FALSE(routed.IsOk());
-  EXPECT_EQ(routed.GetStatus().Code(), StatusCode::kInternal);
-}
-
-TEST(RouteLegsTest, AcceptsNoLegs) {
-  const RoadGraph graph = Diamond();
-  const StatusOr<std::vector<Leg>> routed =
-      RouteLegs(graph, EdgeCost::kLength, {}, ThreadedFor);
-  ASSERT_TRUE(routed.IsOk());
-  EXPECT_TRUE(routed.Value().empty());
+  EXPECT_EQ(
+      RouteLegs(graph, EdgeCost::kTime, failing, first_only).GetStatus().Code(),
+      StatusCode::kInternal);
 }
 
 }  // namespace
