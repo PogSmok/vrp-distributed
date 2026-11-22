@@ -22,8 +22,10 @@ The preprocessor merges chains of nodes that only trace a road's shape
 removed points in `edge_geometry.bin`. This makes the graph several times
 smaller. It never makes an edge longer than `max_edge_length_m` from the
 manifest, because customers snap to nodes (ADR 0006): with a 250 m cap,
-every point of a road is within 125 m of a node. An edge's length and time
-are the sums along its whole shape, not the straight line between its ends.
+every point of a road is within 125 m of a node. A two-way road counts as
+one road only where its edges are as long each way, and it is cut at the
+same nodes in both directions. An edge's length and time are the sums along
+its whole shape, not the straight line between its ends.
 
 ## Binary container
 

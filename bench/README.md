@@ -30,7 +30,8 @@ FINALIZE (ADR 0025): every leg is routed on all CPU threads, the legs must
 add up to the solver's cost, and `--result` writes the result artifact
 (`docs/formats/result.md`).
 
-Inputs come from the preprocessor:
+Inputs come from the preprocessor (see `preprocessor/README.md`), from an
+OpenStreetMap extract or synthetic:
 
 ```sh
 vrp-preprocessor synthetic grid --width 2000 --height 2000 --output grid
