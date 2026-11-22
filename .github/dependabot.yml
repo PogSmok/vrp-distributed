@@ -6,6 +6,8 @@ updates:
       - /.github/actions/*
     schedule:
       interval: weekly
+    cooldown:
+      default-days: 14
 
   - package-ecosystem: uv
     directory: /
