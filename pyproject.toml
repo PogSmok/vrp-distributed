@@ -13,6 +13,7 @@ dev = [
     "pytest==9.2.0",
     "pytest-cov==7.1.0",
     "ruff==0.17.4",
+    "scipy-stubs==1.18.1.1",
 ]
 
 # ---- ruff: formatter and linter ----------------------------------------------
@@ -76,6 +77,11 @@ enable_error_code = [
     "unimported-reveal",
     "unused-awaitable",
 ]
+
+# pyrosm has no type information; osm.py turns what it returns into arrays.
+[[tool.mypy.overrides]]
+module = ["pyrosm", "pyrosm.*"]
+ignore_missing_imports = true
 
 # ---- pytest and coverage -----------------------------------------------------
 

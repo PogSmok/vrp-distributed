@@ -83,7 +83,8 @@ _GEOMETRY: Final = _FileKind(
 _OSM_IDS: Final = _FileKind(
     "osm_node_ids", OSM_IDS_FILE, b"VRPOSMID", {"OSMN": ElementType.INT64}
 )
-_REGION: Final = re.compile(r"[a-z0-9-]+")
+REGION: Final = re.compile(r"[a-z0-9-]+")
+"""What a region slug must match in full."""
 _SHA256: Final = re.compile(r"[0-9a-f]{64}")
 _VERSION_HASH_LENGTH: Final = 8
 
@@ -538,7 +539,7 @@ def _check_canonical_order(graph: RoadGraph) -> None:
 
 
 def _check_metadata(graph: RoadGraph, metadata: GraphMetadata) -> None:
-    if not _REGION.fullmatch(metadata.region):
+    if not REGION.fullmatch(metadata.region):
         msg = f"region {metadata.region!r} must match [a-z0-9-]+"
         raise ValueError(msg)
     if (metadata.source is None) != (graph.osm_ids is None):
