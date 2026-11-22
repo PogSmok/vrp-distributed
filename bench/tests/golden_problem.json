@@ -1,0 +1,11 @@
+{
+  "schema_version": 1,
+  "edge_cost": "length",
+  "vehicle_count": 1,
+  "vehicle_capacity": 10,
+  "depot": {"latitude": 52.0, "longitude": 21.0},
+  "customers": [
+    {"latitude": 52.001, "longitude": 21.0, "demand": 1},
+    {"latitude": 52.0, "longitude": 21.001, "demand": 1}
+  ]
+}

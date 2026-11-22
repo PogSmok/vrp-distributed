@@ -1,5 +1,6 @@
 import contextlib
 import io
+import json
 from pathlib import Path
 
 import pytest
@@ -17,6 +18,21 @@ def test_synthetic_grid_writes_a_readable_graph_version(
     version = read_graph_version(output)
     assert version.graph.node_count == 24
     assert version.graph_version in capsys.readouterr().out
+
+
+def test_problem_writes_a_problem_file_for_a_graph_version(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    graph = tmp_path / "grid"
+    arguments = ["--width", "6", "--height", "4", "--output", str(graph)]
+    assert main(["synthetic", "grid", *arguments]) == 0
+    output = tmp_path / "problem.json"
+    arguments = ["--graph", str(graph), "--customers", "5", "--output"]
+    assert main(["problem", *arguments, str(output)]) == 0
+    problem = json.loads(output.read_text(encoding="utf-8"))
+    assert problem["schema_version"] == 1
+    assert len(problem["customers"]) == 5
+    assert "5 customers" in capsys.readouterr().out
 
 
 # argparse accepts unambiguous prefixes by default, so `--h` would silently

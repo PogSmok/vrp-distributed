@@ -16,8 +16,9 @@ benchmark CLI build on it.
 | `solution.hpp`        | Problem and solution checks, route cost evaluation                                      | 0006, 0025 |
 | `leg_router.hpp`      | Bidirectional Dijkstra for route geometry; batched over a caller-supplied `ParallelFor` | 0025       |
 | `geo.hpp`             | Great-circle distance and position checks                                               | 0006       |
+| `snapping.hpp`        | Snaps stops to their nearest nodes through a grid index; matches the reference exactly  | 0006       |
 | `reference/`          | CPU oracles: Dijkstra, distance matrix, brute-force snapping. Never used in production  | 0023       |
-| `gpu/`                | `DeviceGraph` and `DistanceBatch`: the distance phase on the GPU, in `vrp_core_gpu`     | 0017       |
+| `gpu/`                | `DeviceGraph`, `DistanceBatch` and `ComputeDistanceRows`: the distance phase on the GPU | 0011, 0017 |
 
 The GPU code is a separate target, `vrp_core_gpu`, built only with
 `VRP_ENABLE_CUDA`, so `vrp_core` builds and passes its tests without CUDA.

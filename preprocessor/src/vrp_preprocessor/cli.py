@@ -2,6 +2,7 @@
 
 import argparse
 import datetime as dt
+import json
 import math
 import sys
 from collections.abc import Callable, Sequence
@@ -10,9 +11,11 @@ from pathlib import Path
 from vrp_preprocessor import __version__
 from vrp_preprocessor.graph_format import (
     RoadGraph,
+    read_graph_version,
     require_new_directory,
     write_graph_version,
 )
+from vrp_preprocessor.problem import ProblemOptions, random_problem
 from vrp_preprocessor.synthetic import (
     grid_graph,
     random_graph,
@@ -64,6 +67,30 @@ def build_parser() -> argparse.ArgumentParser:
     random.add_argument("--nodes", type=_int_at_least(2), required=True)
     random.add_argument("--extra-edges", type=_int_at_least(0), default=0)
     _add_common_arguments(random)
+
+    problem = commands.add_parser(
+        "problem",
+        help="write a random problem on a graph version, for benchmarks",
+        allow_abbrev=False,
+    )
+    problem.add_argument(
+        "--graph",
+        type=Path,
+        required=True,
+        help="directory of the graph version to place the stops on",
+    )
+    problem.add_argument("--customers", type=_int_at_least(1), required=True)
+    problem.add_argument("--capacity", type=_int_at_least(1), default=100)
+    problem.add_argument("--max-demand", type=_int_at_least(1), default=10)
+    problem.add_argument(
+        "--edge-cost", choices=["length", "time"], default="time"
+    )
+    problem.add_argument(
+        "--seed", type=int, default=0, help="seed of the random draws"
+    )
+    problem.add_argument(
+        "--output", type=Path, required=True, help="the problem file to write"
+    )
     return parser
 
 
@@ -82,6 +109,8 @@ def main(argv: Sequence[str] | None = None) -> int:
     if arguments.command is None:
         parser.print_help()
         return 0
+    if arguments.command == "problem":
+        return _write_problem(arguments)
     return _write_synthetic(arguments)
 
 
@@ -151,5 +180,33 @@ def _write_synthetic(arguments: argparse.Namespace) -> int:
     sys.stdout.write(
         f"{graph_version}: {graph.node_count} nodes, {graph.edge_count} "
         f"edges, written to {output}\n"
+    )
+    return 0
+
+
+def _write_problem(arguments: argparse.Namespace) -> int:
+    output: Path = arguments.output
+    options = ProblemOptions(
+        customer_count=arguments.customers,
+        seed=arguments.seed,
+        vehicle_capacity=arguments.capacity,
+        max_demand=arguments.max_demand,
+        edge_cost=arguments.edge_cost,
+    )
+    try:
+        version = read_graph_version(arguments.graph)
+        problem = random_problem(version.graph, options)
+        output.write_text(
+            json.dumps(problem, indent=2) + "\n",
+            encoding="utf-8",
+            newline="\n",
+        )
+    except (OSError, ValueError) as error:
+        sys.stderr.write(f"error: {error}\n")
+        return 1
+
+    sys.stdout.write(
+        f"{options.customer_count} customers on {version.graph_version}, "
+        f"written to {output}\n"
     )
     return 0

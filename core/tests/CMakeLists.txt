@@ -7,6 +7,7 @@ add_executable(vrp_core_tests
     test_graph_file.cpp
     test_graphs.cpp
     test_leg_router.cpp
+    test_snapping.cpp
     test_solution.cpp
     test_status_macros.cpp
     reference/test_dijkstra.cpp
@@ -36,6 +37,7 @@ gtest_discover_tests(vrp_core_tests
 if(VRP_ENABLE_CUDA)
     add_executable(vrp_core_gpu_tests
         gpu/test_distance_batch.cpp
+        gpu/test_distance_rows.cpp
         test_graphs.cpp
     )
 

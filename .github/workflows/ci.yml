@@ -37,21 +37,26 @@ jobs:
         run: ctest --preset ${{ matrix.preset }}
 
   cuda:
-    name: CUDA build (ubuntu-latest)
-    runs-on: ubuntu-latest
-    container: nvidia/cuda:12.9.1-devel-ubuntu24.04
+    name: CUDA build (ubuntu-24.04)
+    # Pinned to match the ubuntu2404 NVIDIA repository below.
+    runs-on: ubuntu-24.04
     steps:
-      - name: Install build tools
-        run: >
-          apt-get update && apt-get install -y --no-install-recommends
-          ca-certificates cmake g++ git ninja-build
+      - name: Install CUDA toolkit
+        run: |
+          wget -q https://developer.download.nvidia.com/compute/cuda/repos/ubuntu2404/x86_64/cuda-keyring_1.1-1_all.deb
+          sudo dpkg -i cuda-keyring_1.1-1_all.deb
+          rm cuda-keyring_1.1-1_all.deb
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            cuda-nvcc-12-9 cuda-cudart-dev-12-9 cuda-cccl-12-9 ninja-build
+          echo /usr/local/cuda-12.9/bin >> "$GITHUB_PATH"
 
       - uses: actions/checkout@v7
 
       - name: Set up build
         uses: ./.github/actions/setup-build
         with:
-          container-image: ${{ job.container.image }}
+          cache-variant: cuda-12.9
 
       - name: Configure
         run: cmake --preset cuda
@@ -135,11 +140,12 @@ jobs:
       - name: Configure
         run: cmake --preset default
 
-      # The default preset builds without CUDA, so the GPU tests have no
-      # compile commands here.
+      # The default preset builds without CUDA, so the GPU code and vrp-bench
+      # have no compile commands here.
       - name: Run clang-tidy
         run: >
-          find core -type f -name "*.cpp" -not -path "core/tests/gpu/*"
+          find core bench -type f -name "*.cpp" -not -path "*/gpu/*"
+          -not -path "bench/src/main.cpp"
           | xargs -r -P "$(nproc)" -n 1 clang-tidy-22 -p build/default --quiet
 
   format:

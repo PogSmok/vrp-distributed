@@ -20,6 +20,12 @@ option(VRP_ENABLE_CUDA "Build the GPU kernels; needs CUDA 12.8 or a later 12.x" 
 # CUDA (ADR 0019)
 # -------------------------
 if(VRP_ENABLE_CUDA)
+    # nvcc on Windows compiles host code with MSVC, so C++ must use it too.
+    if(WIN32 AND NOT MSVC)
+        message(FATAL_ERROR
+            "The CUDA build on Windows needs MSVC; configure from an x64 "
+            "Native Tools prompt for Visual Studio 2022.")
+    endif()
     # Native code for the GTX 1060 (6.1), the oldest worker GPU, and the
     # RTX 5050 (12.0); compute_61 PTX runs on every GPU in between.
     # Found before enable_language, whose compiler check fails with a raw nvcc
@@ -61,12 +67,24 @@ function(vrp_enable_warnings target)
     set_target_properties(${target} PROPERTIES COMPILE_WARNING_AS_ERROR ON)
 endfunction()
 
+include(FetchContent)
+
+# -------------------------
+# nlohmann/json, for vrp-bench's problem files; vrp-core does not use it
+# -------------------------
+FetchContent_Declare(
+    nlohmann_json
+    URL https://github.com/nlohmann/json/releases/download/v3.12.0/json.tar.xz
+    URL_HASH SHA256=42f6e95cad6ec532fd372391373363b62a14af6d771056dbfc86160e6dfff7aa
+    DOWNLOAD_EXTRACT_TIMESTAMP TRUE
+    SYSTEM
+)
+FetchContent_MakeAvailable(nlohmann_json)
+
 # -------------------------
 # GoogleTest
 # -------------------------
 if(VRP_BUILD_TESTS)
-    include(FetchContent)
-
     set(gtest_force_shared_crt ON CACHE BOOL "" FORCE)
     set(BUILD_GMOCK OFF CACHE BOOL "" FORCE)
     set(INSTALL_GTEST OFF CACHE BOOL "" FORCE)
@@ -93,3 +111,4 @@ if(VRP_BUILD_TESTS)
 endif()
 
 add_subdirectory(core)
+add_subdirectory(bench)
