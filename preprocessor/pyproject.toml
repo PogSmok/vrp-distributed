@@ -1,0 +1,14 @@
+[project]
+name = "vrp-preprocessor"
+version = "0.1.0"
+description = "Turns OpenStreetMap extracts into versioned road graphs (ADR 0005, 0027)."
+readme = "README.md"
+requires-python = ">=3.13"
+dependencies = []
+
+[project.scripts]
+vrp-preprocessor = "vrp_preprocessor.cli:main"
+
+[build-system]
+requires = ["hatchling>=1.33,<2"]
+build-backend = "hatchling.build"

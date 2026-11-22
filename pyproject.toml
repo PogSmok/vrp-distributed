@@ -1,0 +1,101 @@
+[tool.uv.workspace]
+members = ["preprocessor"]
+
+[tool.uv]
+required-version = ">=0.13.7"
+
+[dependency-groups]
+# Exact versions, so formatting and lint results are the same everywhere.
+dev = [
+    "hypothesis==6.170.15",
+    "mypy==2.4.1",
+    "pip-audit==2.10.1",
+    "pytest==9.2.0",
+    "pytest-cov==7.1.0",
+    "ruff==0.17.4",
+]
+
+# ---- ruff: formatter and linter ----------------------------------------------
+
+[tool.ruff]
+line-length = 80
+target-version = "py313"
+# Python files only: by default ruff also formats code blocks in Markdown.
+include = ["*.py", "*.pyi", "**/pyproject.toml"]
+# Where first-party imports come from, so they sort into their own block.
+src = ["preprocessor/src", "preprocessor/tests"]
+
+[tool.ruff.format]
+docstring-code-format = true
+
+[tool.ruff.lint]
+select = ["ALL"]
+ignore = [
+    "COM812",  # Trailing commas are the formatter's job; the rule conflicts.
+    "CPY001",  # The project does not use per-file copyright headers.
+]
+
+[tool.ruff.lint.pydocstyle]
+convention = "google"
+
+[tool.ruff.lint.flake8-tidy-imports]
+ban-relative-imports = "all"
+
+[tool.ruff.lint.per-file-ignores]
+"**/tests/**" = [
+    "S101",     # pytest is built on assert.
+    "PLR2004",  # Tests compare against literal expected values.
+    "INP001",   # Test directories are not packages.
+    "D100",     # Test modules and functions are named for what they check,
+    "D103",     # so they need no docstrings.
+]
+
+# ---- mypy: static type checking ----------------------------------------------
+
+[tool.mypy]
+python_version = "3.13"
+files = ["preprocessor/src", "preprocessor/tests"]
+strict = true
+warn_unreachable = true
+# Keep untyped values out: Python's equivalent of compiler errors.
+# (disallow_any_decorated is off: every pytest and Hypothesis decorator
+# returns a loosely typed function.)
+disallow_any_unimported = true
+disallow_any_explicit = true
+enable_error_code = [
+    "deprecated",
+    "exhaustive-match",
+    "explicit-override",
+    "ignore-without-code",
+    "mutable-override",
+    "possibly-undefined",
+    "redundant-expr",
+    "redundant-self",
+    "truthy-bool",
+    "truthy-iterable",
+    "unimported-reveal",
+    "unused-awaitable",
+]
+
+# ---- pytest and coverage -----------------------------------------------------
+
+[tool.pytest.ini_options]
+minversion = "9.0"
+testpaths = ["preprocessor/tests"]
+addopts = ["--strict-markers", "--strict-config", "-ra", "--import-mode=importlib"]
+# Any warning, such as an unclosed file, fails the test run.
+filterwarnings = ["error"]
+xfail_strict = true
+
+[tool.coverage.run]
+branch = true
+source = ["vrp_preprocessor"]
+
+[tool.coverage.report]
+fail_under = 90
+show_missing = true
+skip_covered = true
+exclude_also = [
+    "if TYPE_CHECKING:",
+    'if __name__ == "__main__":',
+]

@@ -10,6 +10,12 @@ venv/
 .pytest_cache/
 .mypy_cache/
 .ruff_cache/
+.hypothesis/
+.coverage
+.coverage.*
+htmlcov/
+coverage.xml
+requirements-audit.txt
 
 # --- C++ / CUDA builds ---
 build/
