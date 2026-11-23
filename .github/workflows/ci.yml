@@ -239,6 +239,40 @@ jobs:
           uv run --locked python -X dev -X warn_default_encoding
           -m pytest --cov --cov-report=term-missing
 
+  python-postgres:
+    name: Python with PostgreSQL
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:18.7
+        env:
+          POSTGRES_PASSWORD: test
+          POSTGRES_DB: vrp_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready --health-interval 2s --health-timeout 5s
+          --health-retries 15
+    env:
+      VRP_TEST_DATABASE_URL: postgresql://postgres:test@localhost:5432/vrp_test
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Set up uv and Python
+        uses: astral-sh/setup-uv@1db35dd8eee11c5894872e0b383ae6c406cf738d  # v10.4.0
+        with:
+          version: '0.13.7'
+          python-version: '3.14'
+          enable-cache: true
+
+      - name: Install
+        run: uv sync --locked --all-packages
+
+      - name: Test
+        run: >
+          uv run --locked python -X dev -X warn_default_encoding
+          -m pytest -m postgres
+
   python-audit:
     name: Python dependency audit
     runs-on: ubuntu-latest
