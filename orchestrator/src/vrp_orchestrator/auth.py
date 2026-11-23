@@ -6,6 +6,10 @@ modification time changes, so deleting a line revokes a token without a
 restart. Tokens are long random strings, so a plain SHA-256 is enough.
 """
 
+# grpc's handler types are generic only in their stubs: Python 3.13 would
+# fail evaluating `RpcMethodHandler[...]` in a signature at import time.
+from __future__ import annotations
+
 import contextvars
 import enum
 import hashlib
@@ -13,10 +17,12 @@ import inspect
 import secrets
 from collections.abc import AsyncIterator, Awaitable, Callable, Mapping
 from dataclasses import dataclass
-from pathlib import Path
-from typing import Final, cast, override
+from typing import TYPE_CHECKING, Final, cast, override
 
 import grpc
+
+if TYPE_CHECKING:
+    from pathlib import Path
 
 _HEADER: Final = "authorization"
 _SCHEME: Final = "Bearer "
