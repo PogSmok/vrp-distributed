@@ -1,0 +1,400 @@
+// The control-plane contract between the orchestrator, the workers and the
+// client (ADR 0008). Within a major version, changes only add fields and
+// messages; anything else increments the major version.
+
+syntax = "proto3";
+
+package vrp.v1;
+
+// The version this file defines. Peers send theirs when they connect, and
+// the orchestrator refuses another major version (ADR 0008).
+enum ProtocolVersion {
+  option allow_alias = true;
+  PROTOCOL_VERSION_UNSPECIFIED = 0;
+  PROTOCOL_VERSION_MAJOR = 1;
+  PROTOCOL_VERSION_MINOR = 0;
+}
+
+// ---- Problems and solutions --------------------------------------------------
+
+// Degrees, WGS 84.
+message Position {
+  double latitude = 1;
+  double longitude = 2;
+}
+
+message Customer {
+  Position position = 1;
+  uint32 demand = 2;
+}
+
+// ADR 0020.
+enum EdgeCost {
+  EDGE_COST_UNSPECIFIED = 0;
+  EDGE_COST_LENGTH = 1;  // whole metres
+  EDGE_COST_TIME = 2;    // tenths of a second
+}
+
+// A problem file (docs/formats/problem.md). The depot is stop 0 and
+// customer `i` is stop `i + 1`.
+message Problem {
+  EdgeCost edge_cost = 1;
+  uint32 vehicle_count = 2;
+  uint32 vehicle_capacity = 3;
+  Position depot = 4;
+  repeated Customer customers = 5;
+}
+
+// One vehicle's customers in visiting order, the depot implicit at both
+// ends.
+message Route {
+  repeated uint32 stops = 1;
+}
+
+message Solution {
+  repeated Route routes = 1;
+}
+
+message ConvergencePoint {
+  double seconds = 1;  // since the solve phase started
+  uint64 cost = 2;
+}
+
+// ---- Client API --------------------------------------------------------------
+
+// The solve phase of a job (ADR 0013, 0018).
+message SolveParameters {
+  // K, solve tasks of one worker each; 0 means every registered worker.
+  uint32 task_count = 1;
+  // P, islands on each task's GPU; 0 means 1.
+  uint32 islands_per_task = 2;
+  uint32 seed = 3;
+  double time_limit_seconds = 4;
+  // The solve phase also ends when the best cost has not improved for this
+  // long; 0 means never.
+  double stagnation_seconds = 5;
+}
+
+message SubmitJobRequest {
+  Problem problem = 1;
+  string graph_version = 2;
+  SolveParameters parameters = 3;
+}
+
+message SubmitJobResponse {
+  string job_id = 1;
+}
+
+message CancelJobRequest {
+  string job_id = 1;
+}
+
+message CancelJobResponse {}
+
+enum JobPhase {
+  JOB_PHASE_UNSPECIFIED = 0;
+  JOB_PHASE_QUEUED = 1;
+  JOB_PHASE_PREPARE = 2;
+  JOB_PHASE_DISTANCE = 3;
+  JOB_PHASE_SOLVE = 4;
+  JOB_PHASE_FINALIZE = 5;
+  JOB_PHASE_DONE = 6;
+  JOB_PHASE_FAILED = 7;
+  JOB_PHASE_CANCELLED = 8;
+}
+
+// A poll, about once a second (ADR 0022).
+message GetProgressRequest {
+  string job_id = 1;
+  // How many convergence points the client has; only newer ones are sent.
+  uint32 known_points = 2;
+}
+
+// The result artifact (docs/formats/result.md, ADR 0016).
+message Result {
+  string url = 1;  // presigned, short-lived
+  string sha256 = 2;
+  uint64 size_bytes = 3;
+}
+
+message GetProgressResponse {
+  JobPhase phase = 1;
+  repeated ConvergencePoint points = 2;  // from `known_points` on
+  optional uint64 best_cost = 3;
+  string failure = 4;  // why a FAILED job failed
+  Result result = 5;   // set once the job is DONE
+}
+
+// A graph version of the catalogue (ADR 0015).
+message Graph {
+  string graph_version = 1;
+  string region = 2;
+  uint32 node_count = 3;
+  uint32 edge_count = 4;
+}
+
+message ListGraphsRequest {}
+
+message ListGraphsResponse {
+  repeated Graph graphs = 1;
+}
+
+service ClientService {
+  rpc ListGraphs(ListGraphsRequest) returns (ListGraphsResponse);
+  rpc SubmitJob(SubmitJobRequest) returns (SubmitJobResponse);
+  // Only the client that submitted a job, or an administrator, can cancel
+  // or poll it (ADR 0009).
+  rpc CancelJob(CancelJobRequest) returns (CancelJobResponse);
+  rpc GetProgress(GetProgressRequest) returns (GetProgressResponse);
+}
+
+// ---- Admin API ---------------------------------------------------------------
+
+// Registers a graph version uploaded to `graphs/<graph_version>/`; the
+// orchestrator verifies its files against its manifest first.
+message RegisterGraphRequest {
+  string graph_version = 1;
+}
+
+message RegisterGraphResponse {
+  Graph graph = 1;
+}
+
+service AdminService {
+  rpc RegisterGraph(RegisterGraphRequest) returns (RegisterGraphResponse);
+}
+
+// ---- Worker API --------------------------------------------------------------
+
+// Identifies one attempt at a task. Every message about a task carries it,
+// and receivers ignore repeats and old attempts (ADR 0022).
+message Attempt {
+  string task_id = 1;
+  uint32 attempt = 2;
+}
+
+// The first message of a session. A new session replaces the worker's old
+// one; tasks listed in `held` keep their leases, the others fail
+// (ADR 0014).
+message Register {
+  uint32 protocol_major = 1;
+  uint32 protocol_minor = 2;
+  string build = 3;
+  string gpu = 4;
+  uint64 gpu_memory_bytes = 5;
+  string driver = 6;
+  string metrics_address = 7;  // host:port of its /metrics (ADR 0010)
+  repeated Attempt held = 8;
+}
+
+// The worker has no task and can take one.
+message Idle {}
+
+// Extends the worker's leases (ADR 0013).
+message Heartbeat {
+  double seconds_since_progress = 1;  // ADR 0024
+}
+
+message PrepareResult {
+  // The node each stop snapped to, the depot first; empty if any customer
+  // is too far from every road.
+  repeated uint32 stop_nodes = 1;
+  repeated uint32 too_far_customers = 2;  // stop numbers
+}
+
+// An object the task uploaded through its presigned URL.
+message Upload {
+  string md5 = 1;  // lower-case hex, checked against the object's ETag
+  string sha256 = 2;
+  uint64 size_bytes = 3;
+}
+
+message IslandProgress {
+  uint32 island = 1;
+  Solution best = 2;  // feasible only (ADR 0018)
+  uint64 cost = 3;
+  repeated ConvergencePoint new_points = 4;
+}
+
+// Every few seconds, and once more with `final` after a StopSolve
+// (ADR 0014).
+message SolveProgress {
+  repeated IslandProgress islands = 1;
+  bool final = 2;
+}
+
+// The worker keeps its latest report until a ReportConfirmed with its
+// `sequence` arrives, and resends it after a reconnect (ADR 0022).
+message TaskReport {
+  Attempt attempt = 1;
+  oneof result {
+    PrepareResult prepare = 2;
+    Upload upload = 3;  // DISTANCE and FINALIZE
+    SolveProgress solve = 4;
+  }
+  // Increases with each report of the attempt.
+  uint64 sequence = 5;
+}
+
+message TaskFailure {
+  Attempt attempt = 1;
+  string reason = 2;
+}
+
+// Asks for fresh presigned URLs for an attempt's objects (ADR 0009). The
+// orchestrator sends the attempt's Assignment again, with fresh URLs; the
+// worker takes only the URLs from it.
+message UrlRequest {
+  Attempt attempt = 1;
+}
+
+// An island's solution, for other islands of the job (ADR 0004).
+message Migrant {
+  Attempt attempt = 1;
+  uint32 island = 2;
+  Solution solution = 3;
+}
+
+message MigrantRequest {
+  Attempt attempt = 1;
+  uint32 island = 2;
+}
+
+// JSON-line log records (ADR 0010).
+message LogBatch {
+  repeated string lines = 1;
+}
+
+message WorkerMessage {
+  oneof message {
+    Register register = 1;
+    Idle idle = 2;
+    Heartbeat heartbeat = 3;
+    TaskReport report = 4;
+    TaskFailure failure = 5;
+    UrlRequest url_request = 6;
+    Migrant migrant = 7;
+    MigrantRequest migrant_request = 8;
+    LogBatch logs = 9;
+  }
+}
+
+message Registered {
+  uint32 protocol_major = 1;
+  uint32 protocol_minor = 2;
+}
+
+// A graph version's files, with the SHA-256 the worker verifies its cache
+// against (ADR 0007).
+message GraphFiles {
+  string graph_version = 1;
+  string graph_url = 2;
+  string graph_sha256 = 3;
+  string geometry_url = 4;  // empty for an unsimplified graph
+  string geometry_sha256 = 5;
+}
+
+// Snaps the stops (ADR 0006).
+message PrepareTask {
+  Problem problem = 1;
+  double max_snap_m = 2;
+}
+
+// Rows `[first_row, first_row + row_count)` of the matrix (ADR 0011).
+message DistanceTask {
+  repeated uint32 stop_nodes = 1;
+  uint32 first_row = 2;
+  uint32 row_count = 3;
+  string upload_url = 4;
+}
+
+message MatrixChunk {
+  uint32 first_row = 1;
+  uint32 row_count = 2;
+  string url = 3;
+}
+
+message IslandStart {
+  uint32 island = 1;
+  uint32 seed = 2;
+}
+
+// Runs islands until a StopSolve (ADR 0013, 0018).
+message SolveTask {
+  Problem problem = 1;
+  repeated MatrixChunk matrix = 2;  // in row order
+  repeated IslandStart islands = 3;
+  // The best solutions saved before a restart, to seed the islands with
+  // (ADR 0014).
+  repeated Solution seeds = 4;
+}
+
+message WorkerBuild {
+  string name = 1;
+  string build = 2;
+  string gpu = 3;
+}
+
+message IslandHistory {
+  string worker = 1;
+  repeated ConvergencePoint convergence = 2;
+}
+
+// Checks, routes and stores the best solution (ADR 0016, 0025). The result
+// artifact's metadata comes with it, as the worker writes the artifact.
+message FinalizeTask {
+  Problem problem = 1;
+  repeated uint32 stop_nodes = 2;
+  Solution solution = 3;
+  uint64 cost = 4;
+  string upload_url = 5;
+  SolveParameters parameters = 6;
+  repeated WorkerBuild workers = 7;
+  repeated IslandHistory islands = 8;
+}
+
+message Assignment {
+  Attempt attempt = 1;
+  string job_id = 2;
+  GraphFiles graph = 3;
+  oneof task {
+    PrepareTask prepare = 4;
+    DistanceTask distance = 5;
+    SolveTask solve = 6;
+    FinalizeTask finalize = 7;
+  }
+}
+
+// Stops an attempt at once; no report follows.
+message Cancel {
+  Attempt attempt = 1;
+}
+
+// Ends the solve phase: the islands send their final progress.
+message StopSolve {
+  Attempt attempt = 1;
+}
+
+// The attempt's report with this sequence number is committed; so are its
+// earlier ones.
+message ReportConfirmed {
+  Attempt attempt = 1;
+  uint64 sequence = 2;
+}
+
+message OrchestratorMessage {
+  oneof message {
+    Registered registered = 1;
+    Assignment assignment = 2;
+    Cancel cancel = 3;
+    StopSolve stop = 4;
+    ReportConfirmed confirmed = 5;
+    Migrant migrant = 6;
+  }
+}
+
+service WorkerService {
+  // One long-lived session per worker, opened by the worker; its first
+  // message is a Register (ADR 0002).
+  rpc Session(stream WorkerMessage) returns (stream OrchestratorMessage);
+}
