@@ -1,6 +1,6 @@
 # 0007. Graph distribution: object store with local cache
 
-- **Status:** Accepted
+- **Status:** Accepted; the choice of MinIO superseded by 0029
 - **Date:** 2026-11-21
 - **Related:** 0005, 0009, 0011, 0015
 

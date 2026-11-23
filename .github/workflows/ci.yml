@@ -239,8 +239,10 @@ jobs:
           uv run --locked python -X dev -X warn_default_encoding
           -m pytest --cov --cov-report=term-missing
 
-  python-postgres:
-    name: Python with PostgreSQL
+  # The tests that need PostgreSQL or an S3 store; Windows runners cannot
+  # run containers, so they run on Linux only.
+  python-services:
+    name: Python with PostgreSQL and S3
     runs-on: ubuntu-latest
     services:
       postgres:
@@ -255,8 +257,25 @@ jobs:
           --health-retries 15
     env:
       VRP_TEST_DATABASE_URL: postgresql://postgres:test@localhost:5432/vrp_test
+      VRP_TEST_S3_URL: http://127.0.0.1:8333
     steps:
       - uses: actions/checkout@v7
+
+      # A service container cannot be given a command, and SeaweedFS needs
+      # one (ADR 0029).
+      - name: Start SeaweedFS
+        run: |
+          mkdir -p "$RUNNER_TEMP/s3"
+          cat > "$RUNNER_TEMP/s3/s3.json" <<'EOF'
+          {"identities": [{"name": "test", "credentials": [{"accessKey": "test", "secretKey": "testtest"}], "actions": ["Admin", "Read", "Write", "List", "Tagging"]}]}
+          EOF
+          docker run -d -p 8333:8333 -v "$RUNNER_TEMP/s3:/etc/seaweedfs" \
+            chrislusf/seaweedfs:4.54 server -s3 -s3.config=/etc/seaweedfs/s3.json
+          for _ in $(seq 60); do
+            curl -s -o /dev/null http://127.0.0.1:8333/ && exit 0
+            sleep 1
+          done
+          exit 1
 
       - name: Set up uv and Python
         uses: astral-sh/setup-uv@1db35dd8eee11c5894872e0b383ae6c406cf738d  # v10.4.0
@@ -271,7 +290,7 @@ jobs:
       - name: Test
         run: >
           uv run --locked python -X dev -X warn_default_encoding
-          -m pytest -m postgres
+          -m pytest -m "postgres or s3"
 
   python-audit:
     name: Python dependency audit

@@ -775,7 +775,7 @@
           "structurizr.dsl.identifier" : "vrp.objectStore"
         },
         "tags" : "Element,Container,Database",
-        "technology" : "MinIO (S3)"
+        "technology" : "SeaweedFS (S3)"
       }, {
         "description" : "Jobs, tasks, assignments, graph catalogue.",
         "documentation" : { },

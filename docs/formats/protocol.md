@@ -205,9 +205,11 @@ sequenceDiagram
   after 60 s; it does not change once started (ADR 0013).
 - **Progress** reports only feasible solutions; a report holds each island's
   best and its new convergence points (ADR 0018).
-- **Migrants** go through the orchestrator's pool, which accepts an
-  island's migrants only from the attempt that runs it. A receiving island
-  checks a migrant before using it (ADR 0004).
+- **Migrants** go through the orchestrator's pool, which keeps each
+  island's latest one, and accepts it only from the attempt that runs the
+  island. A `MigrantRequest` is answered, when another island has one, with
+  a `Migrant` addressed to the island that asked. A receiving island checks
+  a migrant before using it (ADR 0004).
 - **Losing islands.** If every island is lost while time remains, the solve
   phase starts again once, seeded with the solutions saved so far
   (ADR 0014).

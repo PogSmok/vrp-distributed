@@ -27,6 +27,7 @@ from vrp_orchestrator.scheduler import (
     SetPool,
     Tick,
 )
+from vrp_orchestrator.telemetry import COMMITS, EVENTS, WAITING
 
 
 class Store(Protocol):
@@ -87,7 +88,10 @@ class SchedulerLoop:
             self._run(tasks, self._scheduler.start())
             while True:
                 event = await self._queue.get()
-                self._run(tasks, self._scheduler.handle(event))
+                with EVENTS.time():
+                    actions = self._scheduler.handle(event)
+                WAITING.set(self._scheduler.waiting)
+                self._run(tasks, actions)
 
     def _run(self, tasks: asyncio.TaskGroup, actions: list[Action]) -> None:
         for action in actions:
@@ -101,7 +105,8 @@ class SchedulerLoop:
     async def _commit(self, rows: Sequence[Row]) -> None:
         while True:
             try:
-                await self._store.commit(rows)
+                with COMMITS.time():
+                    await self._store.commit(rows)
             except psycopg.OperationalError:
                 self._scheduler.degraded = True
                 await asyncio.sleep(self._retry_seconds)

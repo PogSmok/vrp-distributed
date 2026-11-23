@@ -1,6 +1,6 @@
 # 0019. Deployment: third-party services in Docker Compose, our programs native
 
-- **Status:** Accepted
+- **Status:** Accepted; MinIO replaced by SeaweedFS in 0029
 - **Date:** 2026-11-21
 - **Related:** 0008, 0009, 0010, 0023, 0024, 0026
 
