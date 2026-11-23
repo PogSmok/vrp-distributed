@@ -248,7 +248,10 @@ message UrlRequest {
   Attempt attempt = 1;
 }
 
-// An island's solution, for other islands of the job (ADR 0004).
+// An island's solution, for other islands of the job (ADR 0004). From a
+// worker, it is one of its own islands' solutions. From the orchestrator,
+// it answers a MigrantRequest: `attempt` and `island` name the island that
+// asked, and the solution comes from another island.
 message Migrant {
   Attempt attempt = 1;
   uint32 island = 2;

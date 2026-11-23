@@ -6,19 +6,22 @@ Schedules jobs on the GPU workers and owns all job state (ADR 0003, 0021,
 
 ## Contents
 
-| Module          | What it is                                                                    | ADR              |
-|-----------------|-------------------------------------------------------------------------------|------------------|
-| `vrp_pb2`       | The contract, `proto/vrp/v1/vrp.proto`, generated when the package is built   | 0008             |
-| `model.py`      | The persisted rows: graphs, jobs, tasks, islands                              | 0001, 0013       |
-| `scheduler.py`  | Every scheduling decision, as a state machine with no I/O                     | 0013, 0014, 0021 |
-| `runtime.py`    | Runs the Scheduler on the event loop: queue, retried commits, timer           | 0021, 0022       |
-| `repository.py` | The State Repository: schema, migrations, the load at start-up, commits       | 0001, 0019       |
-| `schema_doc.py` | Writes `docs/formats/database.md` from a migrated database's catalogue        | 0001             |
-| `auth.py`       | The token file, the interceptor that checks tokens and roles, TLS credentials | 0009             |
-
-The gRPC services, the Artifact Manager and the Migrant Pool, which turn
-calls into the Scheduler's events and carry out its effects, are the next
-step.
+| Module          | What it is                                                                       | ADR              |
+|-----------------|----------------------------------------------------------------------------------|------------------|
+| `vrp_pb2`       | The contract, `proto/vrp/v1/vrp.proto`, generated when the package is built      | 0008             |
+| `model.py`      | The persisted rows: graphs, jobs, tasks, islands                                 | 0001, 0013       |
+| `scheduler.py`  | Every scheduling decision, as a state machine with no I/O                        | 0013, 0014, 0021 |
+| `runtime.py`    | Runs the Scheduler on the event loop: queue, retried commits, timer              | 0021, 0022       |
+| `repository.py` | The State Repository: schema, migrations, the load at start-up, commits          | 0001, 0019       |
+| `schema_doc.py` | Writes `docs/formats/database.md` from a migrated database's catalogue           | 0001             |
+| `auth.py`       | The token file, the interceptor that checks tokens and roles, TLS credentials    | 0009             |
+| `services.py`   | The Client, Admin and Worker APIs, which turn calls into the Scheduler's events  | 0002, 0012       |
+| `registry.py`   | Connected workers: their send queues and metrics addresses                       | 0010, 0021       |
+| `pool.py`       | The Migrant Pool, which takes an island's migrants only from its attempt         | 0004             |
+| `artifacts.py`  | The Artifact Manager: presigned URLs, upload checks, graph checks, expiry        | 0009, 0016, 0029 |
+| `telemetry.py`  | JSON-line logs with the workers' lines, metrics, worker discovery for Prometheus | 0010             |
+| `config.py`     | The configuration file                                                           | 0019             |
+| `main.py`       | `vrp-orchestrator`: starts every part, and runs the Scheduler                    | 0019             |
 
 `docs/formats/protocol.md` explains the protocol: how the messages flow and
 the rules both sides follow. `docs/formats/database.md` documents the
@@ -31,6 +34,29 @@ uv run python -m vrp_orchestrator.schema_doc <conninfo> docs/formats/database.md
 ```
 
 A test checks that the page matches the schema.
+
+## Running it
+
+```sh
+uv run vrp-orchestrator --config orchestrator.toml
+```
+
+`config.py` documents the file: the gRPC and metrics addresses, the
+database, the token file, the log directory, TLS, and the object store
+(SeaweedFS, ADR 0029), with the public address that presigned URLs are
+signed for (ADR 0009). The database password and the store's keys can
+come from `PGPASSWORD`, `AWS_ACCESS_KEY_ID` and `AWS_SECRET_ACCESS_KEY`
+instead. On start-up the orchestrator migrates the schema, loads its state
+and creates the bucket if it is missing; SIGTERM or Ctrl+C stops it.
+
+- **Logs** go to `<log_dir>/orchestrator.log` as JSON lines in UTC,
+  rotated at midnight and kept 30 days; workers' lines are in the same
+  file, tagged with the worker (ADR 0010).
+- **Metrics** are on `http://<metrics>/metrics`, and the workers' metrics
+  addresses on `http://<metrics>/workers`, for Prometheus's
+  `http_sd_configs`.
+- **Expiry.** Once a day, results and matrices older than 30 days are
+  deleted (ADR 0016).
 
 ## How the Scheduler works
 
@@ -89,13 +115,21 @@ Deleting the line revokes it; the file is re-read when it changes.
 
 ## Tests
 
-`pytest` runs everything but the State Repository's tests, which need an
-empty PostgreSQL database:
+`pytest` runs everything but the tests that need an empty PostgreSQL
+database, or an S3 store with the keys `test`/`testtest`:
 
 ```sh
 docker run -d --name vrp-test-postgres -e POSTGRES_PASSWORD=test -e POSTGRES_DB=vrp_test -p 127.0.0.1:55432:5432 postgres:18.7
 VRP_TEST_DATABASE_URL=postgresql://postgres:test@127.0.0.1:55432/vrp_test uv run pytest -m postgres
+
+# s3.json: {"identities": [{"name": "test", "credentials": [{"accessKey": "test", "secretKey": "testtest"}], "actions": ["Admin", "Read", "Write", "List", "Tagging"]}]}
+docker run -d --name vrp-test-s3 -p 127.0.0.1:58333:8333 -v <dir with s3.json>:/etc/seaweedfs chrislusf/seaweedfs:4.54 server -s3 -s3.config=/etc/seaweedfs/s3.json
+VRP_TEST_S3_URL=http://127.0.0.1:58333 uv run pytest -m s3
 ```
+
+Each S3 test makes a bucket of its own. On Git Bash, set
+`MSYS_NO_PATHCONV=1` for the `docker run`, or it rewrites the container's
+paths.
 
 They empty the database's `public` schema first. On Windows, psycopg's
 asynchronous connections need `asyncio.SelectorEventLoop`, so the tests

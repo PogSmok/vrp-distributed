@@ -31,7 +31,7 @@ workspace "vrp-distributed" "Distributed GPU solver for the Vehicle Routing Prob
                 resultBuilder = component "Result Builder" "Routes legs on the CPU, checks the cost, builds polylines and the result artifact." "vrp-core / C++"
             }
             preprocessor = container "Graph Preprocessor" "Turns OSM extracts into versioned graphs." "Python CLI / pyrosm"
-            objectStore  = container "Object Store" "Graphs, distance matrices and results." "MinIO (S3)" {
+            objectStore  = container "Object Store" "Graphs, distance matrices and results." "SeaweedFS (S3)" {
                 tags "Database"
             }
             stateDb      = container "Job State DB" "Jobs, tasks, assignments, graph catalogue." "PostgreSQL" {

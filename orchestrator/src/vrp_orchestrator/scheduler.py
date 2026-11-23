@@ -336,6 +336,11 @@ class Scheduler:
         for row in rows:
             self._put(row)
 
+    @property
+    def waiting(self) -> int:
+        """How many events wait for the commit in flight."""
+        return len(self._waiting)
+
     def start(self) -> list[Action]:
         """The actions to take on start-up: reopen pools, and schedule.
 

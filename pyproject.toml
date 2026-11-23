@@ -15,6 +15,8 @@ dev = [
     "ruff==0.17.4",
     "cryptography==50.0.2",
     "scipy-stubs==1.18.1.1",
+    "types-boto3==1.44.9",
+    "types-boto3-s3==1.44.6",
     "types-grpcio==1.85.0.20261122",
     "types-protobuf==7.35.1.20261122",
 ]
@@ -111,17 +113,19 @@ ignore_missing_imports = true
 [tool.pytest.ini_options]
 minversion = "9.0"
 testpaths = ["orchestrator/tests", "preprocessor/tests"]
-# The postgres tests run only when asked for, with `-m postgres`.
+# The tests that need a database or an S3 store run only when asked for,
+# with `-m postgres` or `-m s3`.
 addopts = [
     "--strict-markers",
     "--strict-config",
     "-ra",
     "--import-mode=importlib",
     "-m",
-    "not postgres",
+    "not postgres and not s3",
 ]
 markers = [
     "postgres: needs an empty PostgreSQL database at VRP_TEST_DATABASE_URL",
+    "s3: needs an S3 store at VRP_TEST_S3_URL, with keys test/testtest",
 ]
 # Any warning, such as an unclosed file, fails the test run.
 filterwarnings = ["error"]
