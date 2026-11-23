@@ -12,7 +12,7 @@ namespace vrp::core {
 
 // A point of an island's convergence history.
 struct ConvergencePoint {
-  double seconds = 0.0;  // since the island started
+  double seconds = 0.0;  // since the island's solve task started
   RouteCost cost = 0;    // of the best feasible solution so far
 };
 

@@ -8,6 +8,7 @@
 #include <numbers>
 #include <span>
 #include <string>
+#include <utility>
 #include <vector>
 
 #include "vrp/core/geo.hpp"
@@ -154,9 +155,9 @@ void ForEachNodeNear(const NodeGrid& grid, const LatLon& point, double angle,
 
 }  // namespace
 
-StatusOr<std::vector<NodeId>> SnapToNearestNodes(const RoadGraph& graph,
-                                                 std::span<const LatLon> points,
-                                                 double max_distance_meters) {
+StatusOr<SnappedPoints> SnapWithinDistance(const RoadGraph& graph,
+                                           std::span<const LatLon> points,
+                                           double max_distance_meters) {
   if (graph.NodeCount() == 0) {
     return InvalidArgumentError("cannot snap to an empty graph");
   }
@@ -169,8 +170,7 @@ StatusOr<std::vector<NodeId>> SnapToNearestNodes(const RoadGraph& graph,
   const NodeGrid grid(positions);
   const double angle = max_distance_meters / kEarthRadiusMeters;
   std::vector<NodeId> snapped(points.size());
-  std::string too_far;
-  std::size_t too_far_count = 0;
+  std::vector<std::uint32_t> too_far;
   for (std::size_t point = 0; point < points.size(); ++point) {
     if (!IsValidPosition(points[point])) {
       return InvalidArgumentError("point " + std::to_string(point) +
@@ -188,18 +188,32 @@ StatusOr<std::vector<NodeId>> SnapToNearestNodes(const RoadGraph& graph,
       }
     });
     if (best_distance > max_distance_meters) {
-      too_far += (too_far_count == 0 ? "" : ", ") + std::to_string(point);
-      ++too_far_count;
+      too_far.push_back(static_cast<std::uint32_t>(point));
     }
   }
+  return SnappedPoints{.nodes = std::move(snapped),
+                       .too_far = std::move(too_far)};
+}
 
-  if (too_far_count > 0) {
-    return NotFoundError(std::to_string(too_far_count) +
+StatusOr<std::vector<NodeId>> SnapToNearestNodes(const RoadGraph& graph,
+                                                 std::span<const LatLon> points,
+                                                 double max_distance_meters) {
+  StatusOr<SnappedPoints> snapped =
+      SnapWithinDistance(graph, points, max_distance_meters);
+  if (!snapped.IsOk()) {
+    return snapped.GetStatus();
+  }
+  if (!snapped.Value().too_far.empty()) {
+    std::string list;
+    for (const std::uint32_t point : snapped.Value().too_far) {
+      list += (list.empty() ? "" : ", ") + std::to_string(point);
+    }
+    return NotFoundError(std::to_string(snapped.Value().too_far.size()) +
                          " points are farther than the maximum snapping "
                          "distance from every node: " +
-                         too_far);
+                         list);
   }
-  return snapped;
+  return std::move(snapped.Value().nodes);
 }
 
 }  // namespace vrp::core

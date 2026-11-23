@@ -68,7 +68,9 @@ MIGRATIONS: Final = (
         row_count integer NOT NULL,
         solve_round integer NOT NULL,
         islands integer[] NOT NULL,
-        object_key text NOT NULL
+        object_key text NOT NULL,
+        object_sha256 text NOT NULL,
+        failure text NOT NULL
     );
     CREATE TABLE islands (
         job_id text NOT NULL REFERENCES jobs,
@@ -144,6 +146,10 @@ MIGRATIONS: Final = (
     COMMENT ON COLUMN tasks.islands IS 'The islands a solve task runs.';
     COMMENT ON COLUMN tasks.object_key IS
         'What the attempt that finished it uploaded: a matrix chunk or result.';
+    COMMENT ON COLUMN tasks.object_sha256 IS
+        'SHA-256 of that object, which readers of a matrix chunk check.';
+    COMMENT ON COLUMN tasks.failure IS
+        'Why a failed solve task failed; else empty.';
 
     COMMENT ON TABLE islands IS
         'Islands of the solve phase and their best solutions (ADR 0014).';
@@ -157,7 +163,7 @@ MIGRATIONS: Final = (
         'Its best feasible solution, as vrp.v1.Solution JSON; null until one.';
     COMMENT ON COLUMN islands.cost IS 'The cost of that solution.';
     COMMENT ON COLUMN islands.convergence IS
-        'Its best cost over time: [seconds since the solve start, cost] pairs.';
+        'Its best cost over time: [seconds since its task start, cost] pairs.';
     """,
 )
 """The schema, one script per version; a new version appends one."""

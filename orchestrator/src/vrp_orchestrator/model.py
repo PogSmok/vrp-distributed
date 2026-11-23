@@ -105,6 +105,8 @@ class Task:
     solve_round: int = 0  # SOLVE
     islands: tuple[int, ...] = ()  # SOLVE
     object_key: str = ""  # what the attempt that finished the task uploaded
+    object_sha256: str = ""  # of that object
+    failure: str = ""  # why a failed SOLVE task failed
 
 
 @dataclass(frozen=True)

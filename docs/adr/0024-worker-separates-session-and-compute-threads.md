@@ -28,6 +28,9 @@ would hide a computation that is stuck.
   the worker logs it and exits, and is restarted. Recovery treats it like
   any lost worker (0014). Task errors, by contrast, are returned as values
   and reported (0013).
+- **Lost GPU.** After a CUDA error that only a process restart clears, such
+  as a GPU reset, the worker reports its task as failed and exits, and is
+  restarted. Otherwise it would stay connected and fail every task it gets.
 
 ## Alternatives considered
 

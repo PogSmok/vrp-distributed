@@ -1,0 +1,18 @@
+name: Install CUDA
+description: >
+  Installs the CUDA 12.9 compiler and Ninja on ubuntu-24.04, the release the
+  NVIDIA repository below is for.
+
+runs:
+  using: composite
+  steps:
+    - name: Install CUDA toolkit
+      shell: bash
+      run: |
+        wget -q https://developer.download.nvidia.com/compute/cuda/repos/ubuntu2404/x86_64/cuda-keyring_1.1-1_all.deb
+        sudo dpkg -i cuda-keyring_1.1-1_all.deb
+        rm cuda-keyring_1.1-1_all.deb
+        sudo apt-get update
+        sudo apt-get install -y --no-install-recommends \
+          cuda-nvcc-12-9 cuda-cudart-dev-12-9 cuda-cccl-12-9 ninja-build
+        echo /usr/local/cuda-12.9/bin >> "$GITHUB_PATH"

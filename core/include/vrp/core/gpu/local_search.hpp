@@ -26,7 +26,8 @@ class LocalSearch {
   // `matrix` must outlive the search. `neighbor_count` is the size of each
   // customer's neighbourhood, at most all other customers. Fails with
   // kInvalidArgument if the matrix and the problem disagree on the number of
-  // stops or `max_batch` is 0, and with kInternal if a CUDA call fails.
+  // stops or `max_batch` is 0, and with kInternal or kDeviceLost if a CUDA
+  // call fails.
   static StatusOr<LocalSearch> Create(const DistanceMatrix& matrix,
                                       const Problem& problem,
                                       std::size_t neighbor_count,
@@ -39,7 +40,8 @@ class LocalSearch {
   // routes before and after, and empty routes are dropped. Returns each
   // result's evaluation, as the deltas of the applied moves predict it.
   // Fails with kInvalidArgument for more than `max_batch` solutions or a
-  // solution with too many routes, and with kInternal if a CUDA call fails.
+  // solution with too many routes, and with kInternal or kDeviceLost if a
+  // CUDA call fails.
   // Precondition: every solution visits each customer exactly once.
   StatusOr<std::vector<solver::Evaluation>> Improve(
       std::span<std::vector<Route>> solutions, double penalty);

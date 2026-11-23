@@ -41,17 +41,10 @@ jobs:
     # Pinned to match the ubuntu2404 NVIDIA repository below.
     runs-on: ubuntu-24.04
     steps:
-      - name: Install CUDA toolkit
-        run: |
-          wget -q https://developer.download.nvidia.com/compute/cuda/repos/ubuntu2404/x86_64/cuda-keyring_1.1-1_all.deb
-          sudo dpkg -i cuda-keyring_1.1-1_all.deb
-          rm cuda-keyring_1.1-1_all.deb
-          sudo apt-get update
-          sudo apt-get install -y --no-install-recommends \
-            cuda-nvcc-12-9 cuda-cudart-dev-12-9 cuda-cccl-12-9 ninja-build
-          echo /usr/local/cuda-12.9/bin >> "$GITHUB_PATH"
-
       - uses: actions/checkout@v7
+
+      - name: Install CUDA toolkit
+        uses: ./.github/actions/install-cuda
 
       - name: Set up build
         uses: ./.github/actions/setup-build
@@ -66,6 +59,73 @@ jobs:
 
       - name: Test
         run: ctest --preset cuda --label-exclude gpu
+
+  worker:
+    name: Worker (ubuntu-24.04)
+    runs-on: ubuntu-24.04
+    env:
+      VCPKG_ROOT: ${{ github.workspace }}/.vcpkg
+      VCPKG_DEFAULT_BINARY_CACHE: ${{ github.workspace }}/.vcpkg-archives
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Install CUDA toolkit
+        uses: ./.github/actions/install-cuda
+
+      - name: Install clang-tidy
+        uses: ./.github/actions/install-llvm-tools
+        with:
+          packages: clang-tidy-22
+
+      - name: Set up build
+        uses: ./.github/actions/setup-build
+        with:
+          cache-variant: cuda-12.9
+
+      # vcpkg rebuilds its packages when the compiler or CMake changes, so the
+      # key must change with them, or the rebuilt packages would never be saved.
+      - name: Read compiler and CMake versions
+        id: vcpkg-tools
+        run: |
+          echo "hash=$( (g++ --version; cmake --version) | sha256sum | cut -c1-16)" >> "$GITHUB_OUTPUT"
+
+      # gRPC takes most of an hour to build, so its packages are cached.
+      - name: Restore vcpkg packages
+        id: vcpkg-cache
+        uses: actions/cache/restore@v6
+        with:
+          path: .vcpkg-archives
+          key: vcpkg-ubuntu-24.04-${{ hashFiles('vcpkg.json') }}-${{ steps.vcpkg-tools.outputs.hash }}
+
+      - name: Set up vcpkg at the pinned baseline
+        run: |
+          mkdir -p "$VCPKG_DEFAULT_BINARY_CACHE"
+          git clone https://github.com/microsoft/vcpkg "$VCPKG_ROOT"
+          git -C "$VCPKG_ROOT" checkout "$(jq -r '."builtin-baseline"' vcpkg.json)"
+          "$VCPKG_ROOT/bootstrap-vcpkg.sh" -disableMetrics
+
+      - name: Configure
+        run: cmake --preset worker
+
+      # Saved here, so that a later failure does not cost the next run a
+      # rebuild of gRPC.
+      - name: Save vcpkg packages
+        if: steps.vcpkg-cache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v6
+        with:
+          path: .vcpkg-archives
+          key: ${{ steps.vcpkg-cache.outputs.cache-primary-key }}
+
+      - name: Build
+        run: cmake --build --preset worker
+
+      - name: Test
+        run: ctest --preset worker --label-exclude gpu
+
+      - name: Run clang-tidy
+        run: >
+          find worker -type f -name "*.cpp"
+          | xargs -r -P "$(nproc)" -n 1 clang-tidy-22 -p build/worker --quiet
 
   sanitizers:
     name: ${{ matrix.name }}

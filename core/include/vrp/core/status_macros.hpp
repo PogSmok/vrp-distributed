@@ -46,17 +46,17 @@ Status ToStatus(const StatusOr<T>& status_or) {
       VRP_STATUS_MACROS_CONCAT_(vrp_status_or_, __LINE__), lhs, rexpr)
 
 // `status_or` is a variable name and `lhs` may be a declaration, so neither
-// can be parenthesised.
-// NOLINTBEGIN(bugprone-macro-parentheses)
+// can be parenthesised. The trailing `_` marks these macros as private.
+// NOLINTBEGIN(bugprone-macro-parentheses,readability-identifier-naming)
 #define VRP_ASSIGN_OR_RETURN_IMPL_(status_or, lhs, rexpr) \
   auto status_or = (rexpr);                               \
   if (!status_or.IsOk()) {                                \
     return status_or.GetStatus();                         \
   }                                                       \
   lhs = std::move(status_or).Value()
-// NOLINTEND(bugprone-macro-parentheses)
 
 #define VRP_STATUS_MACROS_CONCAT_INNER_(x, y) x##y
 #define VRP_STATUS_MACROS_CONCAT_(x, y) VRP_STATUS_MACROS_CONCAT_INNER_(x, y)
+// NOLINTEND(bugprone-macro-parentheses,readability-identifier-naming)
 
 #endif  // VRP_CORE_STATUS_MACROS_HPP_

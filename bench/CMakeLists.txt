@@ -28,11 +28,8 @@ if(VRP_ENABLE_CUDA)
         PRIVATE
             vrp::core_gpu
             vrp_bench_files
+            vrp_build_version
             Threads::Threads
-    )
-    # Recorded in result files (ADR 0016).
-    target_compile_definitions(vrp-bench PRIVATE
-        VRP_BUILD_VERSION="${PROJECT_VERSION}"
     )
     vrp_enable_warnings(vrp-bench)
 endif()

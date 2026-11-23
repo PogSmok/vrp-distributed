@@ -1,5 +1,18 @@
 cmake_minimum_required(VERSION 3.25)
 
+# The worker's dependencies come from vcpkg, built once in release mode, for
+# the worker and for the tools that generate its code (ADR 0019). Set before
+# `project`, which runs vcpkg's toolchain file.
+if(VRP_BUILD_WORKER)
+    if(CMAKE_HOST_WIN32)
+        set(vrp_triplet x64-windows-static-md-release)
+    else()
+        set(vrp_triplet x64-linux-release)
+    endif()
+    set(VCPKG_TARGET_TRIPLET ${vrp_triplet} CACHE STRING "")
+    set(VCPKG_HOST_TRIPLET ${vrp_triplet} CACHE STRING "")
+endif()
+
 project(vrp_distributed
     VERSION 0.1.0
     DESCRIPTION "Distributed GPU solver for the Vehicle Routing Problem"
@@ -15,6 +28,10 @@ set(CMAKE_CXX_EXTENSIONS OFF)
 
 option(VRP_BUILD_TESTS "Build the tests" ${PROJECT_IS_TOP_LEVEL})
 option(VRP_ENABLE_CUDA "Build the GPU kernels; needs CUDA 12.8 or a later 12.x" OFF)
+option(VRP_BUILD_WORKER "Build vrp-worker; needs CUDA and vcpkg" OFF)
+if(VRP_BUILD_WORKER AND NOT VRP_ENABLE_CUDA)
+    message(FATAL_ERROR "VRP_BUILD_WORKER needs VRP_ENABLE_CUDA.")
+endif()
 
 # -------------------------
 # CUDA (ADR 0019)
@@ -70,7 +87,8 @@ endfunction()
 include(FetchContent)
 
 # -------------------------
-# nlohmann/json, for vrp-bench's input files; vrp-core does not use it
+# nlohmann/json, for vrp-bench's input files and vrp-worker's configuration and
+# logs; vrp-core does not use it
 # -------------------------
 FetchContent_Declare(
     nlohmann_json
@@ -110,5 +128,29 @@ if(VRP_BUILD_TESTS)
     enable_testing()
 endif()
 
+# -------------------------
+# The git version of this build, which results record (ADR 0016, 0019)
+# -------------------------
+if(VRP_ENABLE_CUDA)
+    set(vrp_version_header ${CMAKE_BINARY_DIR}/generated/vrp/build_version.hpp)
+    add_custom_target(vrp_build_version_file
+        COMMAND ${CMAKE_COMMAND}
+            -DSOURCE_DIR=${PROJECT_SOURCE_DIR}
+            -DFALLBACK=${PROJECT_VERSION}
+            -DOUTPUT=${vrp_version_header}
+            -P ${PROJECT_SOURCE_DIR}/cmake/build_version.cmake
+        BYPRODUCTS ${vrp_version_header}
+        VERBATIM
+    )
+    add_library(vrp_build_version INTERFACE)
+    target_include_directories(vrp_build_version
+        INTERFACE ${CMAKE_BINARY_DIR}/generated
+    )
+    add_dependencies(vrp_build_version vrp_build_version_file)
+endif()
+
 add_subdirectory(core)
 add_subdirectory(bench)
+if(VRP_BUILD_WORKER)
+    add_subdirectory(worker)
+endif()

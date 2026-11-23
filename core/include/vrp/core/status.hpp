@@ -25,6 +25,8 @@ enum class StatusCode : std::uint8_t {
   kOutOfRange,
   kInternal,
   kCancelled,
+  kDataLoss,    // stored data is corrupt, so retrying cannot help
+  kDeviceLost,  // the GPU is unusable until the process restarts
 };
 
 // The outcome of an operation: OK, or an error code with a message.
@@ -61,6 +63,12 @@ inline Status InternalError(std::string message) {
 }
 inline Status CancelledError(std::string message) {
   return {StatusCode::kCancelled, std::move(message)};
+}
+inline Status DataLossError(std::string message) {
+  return {StatusCode::kDataLoss, std::move(message)};
+}
+inline Status DeviceLostError(std::string message) {
+  return {StatusCode::kDeviceLost, std::move(message)};
 }
 
 // Either a value or an error Status, modelled on absl::StatusOr.
