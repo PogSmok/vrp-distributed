@@ -1,0 +1,31 @@
+{
+  "$schema": "https://raw.githubusercontent.com/microsoft/vcpkg-tool/main/docs/vcpkg.schema.json",
+  "name": "vrp-distributed",
+  "version": "0.1.0",
+  "description": "The worker's dependencies (ADR 0019)",
+  "builtin-baseline": "fab1c6dc7a944372a90a1e19ab5e8e32cd658fc2",
+  "dependencies": [
+    {
+      "name": "curl",
+      "default-features": false,
+      "features": ["openssl"]
+    },
+    "grpc",
+    {
+      "name": "grpc",
+      "host": true,
+      "features": ["codegen"]
+    },
+    "openssl",
+    {
+      "name": "prometheus-cpp",
+      "default-features": false,
+      "features": ["pull"]
+    },
+    "protobuf",
+    {
+      "name": "protobuf",
+      "host": true
+    }
+  ]
+}

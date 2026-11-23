@@ -48,6 +48,15 @@
       }
     },
     {
+      "name": "worker",
+      "displayName": "Release with the worker; needs VCPKG_ROOT",
+      "inherits": "cuda-release",
+      "toolchainFile": "$env{VCPKG_ROOT}/scripts/buildsystems/vcpkg.cmake",
+      "cacheVariables": {
+        "VRP_BUILD_WORKER": "ON"
+      }
+    },
+    {
       "name": "asan",
       "displayName": "AddressSanitizer + UndefinedBehaviorSanitizer",
       "inherits": "base",
@@ -91,6 +100,10 @@
     {
       "name": "cuda-release",
       "configurePreset": "cuda-release"
+    },
+    {
+      "name": "worker",
+      "configurePreset": "worker"
     },
     {
       "name": "asan",
@@ -138,6 +151,11 @@
       "name": "cuda-release",
       "inherits": "base",
       "configurePreset": "cuda-release"
+    },
+    {
+      "name": "worker",
+      "inherits": "base",
+      "configurePreset": "worker"
     },
     {
       "name": "asan",

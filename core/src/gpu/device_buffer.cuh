@@ -15,7 +15,8 @@
 
 namespace vrp::core::gpu {
 
-// OK, or kInternal naming the failed operation and CUDA's reason.
+// OK, or an error naming the failed operation and CUDA's reason: kDeviceLost
+// if only restarting the process clears it, else kInternal.
 Status CudaStatus(cudaError_t error, std::string_view operation);
 
 // Uninitialised GPU memory for `size` values of `T`.

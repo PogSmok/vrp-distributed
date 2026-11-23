@@ -15,7 +15,7 @@ namespace vrp::core::gpu {
 // the part of the graph the distance phase uses (ADR 0017, 0020).
 class DeviceGraph {
  public:
-  // Fails with kInternal if a CUDA call fails.
+  // Fails with kInternal or kDeviceLost if a CUDA call fails.
   static StatusOr<DeviceGraph> Create(const RoadGraph& graph, EdgeCost cost);
 
   [[nodiscard]] std::size_t NodeCount() const { return offsets_.size - 1; }

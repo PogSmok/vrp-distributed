@@ -29,6 +29,7 @@
 #include "vrp/bench/cvrplib_file.hpp"
 #include "vrp/bench/manifest_file.hpp"
 #include "vrp/bench/problem_file.hpp"
+#include "vrp/build_version.hpp"
 #include "vrp/core/distance_matrix.hpp"
 #include "vrp/core/edge_geometry.hpp"
 #include "vrp/core/gpu/device.hpp"

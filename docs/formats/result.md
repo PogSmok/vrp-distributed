@@ -50,7 +50,8 @@ straight lines.
 
 **Islands.** `worker` names the worker that ran the island. `convergence`
 lists `[seconds, cost]` pairs, one each time the island's best feasible cost
-improved, with `seconds` counted from the island's start.
+improved, with `seconds` counted from the start of the island's solve task,
+which includes downloading the matrix.
 
 Costs are integers, at most 2⁶⁴ − 1 (ADR 0020). Readers ignore fields they do
 not know, so later writers can add fields within the same schema version;

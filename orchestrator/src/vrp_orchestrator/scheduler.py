@@ -51,6 +51,7 @@ _PHASES: Final = {
 }
 _MAX_LATITUDE: Final = 90.0
 _MAX_LONGITUDE: Final = 180.0
+_TOO_LARGE: Final = "the problem needs more GPU memory than any worker has"
 
 
 # ---- Interfaces --------------------------------------------------------------
@@ -499,17 +500,7 @@ class Scheduler:
         elif isinstance(row, Island):
             self.islands[row.job_id, row.index] = row
         elif isinstance(row, Task):
-            old = self.tasks.get(row.id)
-            self.tasks[row.id] = row
-            if row.state is not TaskState.LEASED:
-                self._deadlines.pop(row.id, None)
-                self._checking.pop(row.id, None)
-                self._firm.discard(row.id)
-            elif old is None or old.attempt != row.attempt:
-                self._deadlines[row.id] = self._lease_deadline()
-                worker = self._workers.get(row.worker)
-                if worker is not None:
-                    worker.idle = False
+            self._put_task(row, now)
         else:
             old_job = self.jobs.get(row.id)
             self.jobs[row.id] = row
@@ -527,6 +518,22 @@ class Scheduler:
             if row.phase is not Phase.SOLVE:
                 self._stopping.discard(row.id)
 
+    def _put_task(self, row: Task, now: float) -> None:
+        old = self.tasks.get(row.id)
+        self.tasks[row.id] = row
+        if row.state is not TaskState.LEASED:
+            self._deadlines.pop(row.id, None)
+            self._checking.pop(row.id, None)
+            self._firm.discard(row.id)
+        elif old is None or old.attempt != row.attempt:
+            self._deadlines[row.id] = self._lease_deadline()
+            worker = self._workers.get(row.worker)
+            if worker is not None:
+                worker.idle = False
+            # Stagnation counts from the group's start, not its wait.
+            if row.kind is TaskKind.SOLVE:
+                self._last_improvement[row.job_id] = now
+
     # ---- Events that may change state ----------------------------------------
 
     def _process(self, event: Event) -> list[Action]:  # noqa: PLR0911
@@ -542,8 +549,7 @@ class Scheduler:
                 _Transition((event.graph,), (Reply(event.respond, response),))
             )
         if isinstance(event, SessionOpened):
-            self._open_session(event)
-            return []
+            return list(self._open_session(event))
         if isinstance(event, SessionClosed):
             worker = self._workers.get(event.worker)
             if worker is not None and worker.session == event.session:
@@ -576,7 +582,7 @@ class Scheduler:
                 if worker.connected
             ]
             if sizes and max(sizes) < need:
-                error = "the problem needs more GPU memory than any worker has"
+                error = _TOO_LARGE
         if error:
             refusal = Refusal(grpc.StatusCode.INVALID_ARGUMENT, error)
             return [Reply(event.respond, refusal)]
@@ -605,17 +611,28 @@ class Scheduler:
             replace(transition, effects=(*transition.effects, reply))
         )
 
-    def _open_session(self, event: SessionOpened) -> None:
-        """Replaces the session; leases the worker no longer lists expire."""
+    def _open_session(self, event: SessionOpened) -> list[Effect]:
+        """Replaces the session; leases the worker no longer lists expire.
+
+        Listed attempts that are no longer its leases are cancelled: nothing
+        else would stop them, or release their unconfirmed reports.
+        """
         self._workers[event.worker] = _Worker(event.session, event.register)
         held = {(a.task_id, a.attempt) for a in event.register.held}
-        for task in self._leases(event.worker):
+        leases = self._leases(event.worker)
+        for task in leases:
             if task.id in self._firm:
                 continue  # its deadline stands
             if (task.id, task.attempt) in held:
                 self._deadlines[task.id] = self._lease_deadline()
             else:
                 self._deadlines[task.id] = self._monotonic()
+        current = {(task.id, task.attempt) for task in leases}
+        return [
+            Send(event.worker, _cancel(attempt))
+            for attempt in event.register.held
+            if (attempt.task_id, attempt.attempt) not in current
+        ]
 
     def _from_worker(self, event: FromWorker) -> list[Action]:
         message = event.message
@@ -632,9 +649,14 @@ class Scheduler:
         elif kind == "report":
             return self._report(event.worker, message.report)
         elif kind == "failure":
-            task = self._current(event.worker, message.failure.attempt)
+            failure = message.failure
+            task = self._current(event.worker, failure.attempt)
+            if task is not None and failure.permanent:
+                reason = f"{task.kind} task {task.index}: {failure.reason}"
+                job = self.jobs[task.job_id]
+                return self._begin(self._end(job, Phase.FAILED, reason))
             if task is not None:
-                return self._begin(self._fail(task, message.failure.reason))
+                return self._begin(self._fail(task, failure.reason))
         return []
 
     def _report(self, worker: str, report: vrp_pb2.TaskReport) -> list[Action]:
@@ -747,7 +769,14 @@ class Scheduler:
             return self._fail(task, f"the upload check failed: {event.error}")
         upload = report.upload
         key = _upload_key(task, task.attempt)
-        rows: list[Row] = [replace(task, state=TaskState.DONE, object_key=key)]
+        rows: list[Row] = [
+            replace(
+                task,
+                state=TaskState.DONE,
+                object_key=key,
+                object_sha256=upload.sha256,
+            )
+        ]
         if task.kind is TaskKind.FINALIZE:
             job = self.jobs[task.job_id]
             rows.append(
@@ -824,10 +853,8 @@ class Scheduler:
         pending = [task for task in tasks if task.state is TaskState.PENDING]
         if pending:
             workers = self._available(job, islands=0)
-            if not workers:
-                return None
-            task = min(pending, key=lambda task: task.index)
-            return self._assign(task, workers[0])
+            placed = self._place(pending, workers)
+            return None if placed is None else self._assign(*placed)
         if job.phase is Phase.DISTANCE and all(
             task.state is TaskState.DONE
             for task in tasks
@@ -836,30 +863,75 @@ class Scheduler:
             return _Transition((replace(job, phase=Phase.SOLVE),))
         return None
 
+    def _place(
+        self, pending: list[Task], workers: list[str]
+    ) -> tuple[Task, str] | None:
+        """The next task and its worker, if one can take it now.
+
+        A retry waits for another connected worker, as the last attempt's
+        failure may be its worker's.
+        """
+        connected = {n for n, w in self._workers.items() if w.connected}
+        for task in sorted(pending, key=lambda t: t.index):
+            for worker in workers:
+                if worker != task.worker or connected == {worker}:
+                    return task, worker
+        return None
+
     def _next_solve(self, job: Job) -> _Transition | None:
         tasks = self._round_tasks(job)
-        if not tasks:
+        too_large = not tasks and self._too_large(job)
+        # A restarted round whose time ran out while it waited has no group
+        # to start: one started now would never be told to stop.
+        if not tasks and not too_large and not self._solve_over(job):
             return self._start_group(job)
         if any(task.state is TaskState.LEASED for task in tasks):
             return None
         # The round is over. If every island was lost with time to spare,
         # the solve phase restarts once from the saved solutions (ADR 0014).
         if (
-            all(task.state is TaskState.FAILED for task in tasks)
+            tasks
+            and all(task.state is TaskState.FAILED for task in tasks)
+            and job.id not in self._stopping  # a stopped solve stays stopped
             and not self._solve_over(job)
             and job.solve_round < self._settings.solve_restarts
         ):
             return _Transition((replace(job, solve_round=job.solve_round + 1),))
+        return self._end_solve(job, too_large=too_large)
+
+    def _too_large(self, job: Job) -> bool:
+        """Whether the group wait has passed and no connected worker fits."""
+        now = self._monotonic()
+        waited = now - self._group_wait_since.get(job.id, now)
+        sizes = [
+            worker.register.gpu_memory_bytes
+            for worker in self._workers.values()
+            if worker.connected
+        ]
+        if not sizes or _longer(self._settings.group_wait, waited):
+            return False
+        graph = self.graphs[job.graph_version]
+        return max(sizes) < _gpu_bytes(graph, job.problem, job.parameters)
+
+    def _end_solve(self, job: Job, *, too_large: bool) -> _Transition:
+        """Moves on to FINALIZE, or fails a job with no solution."""
         close = SetPool(job.id, {})
-        if self._best_island(job) is None:
-            transition = self._end(
-                job, Phase.FAILED, "no feasible solution found"
+        if self._best_island(job) is not None:
+            task = Task(
+                id=self._new_id(),
+                job_id=job.id,
+                kind=TaskKind.FINALIZE,
+                index=0,
             )
-            return replace(transition, effects=(*transition.effects, close))
-        task = Task(
-            id=self._new_id(), job_id=job.id, kind=TaskKind.FINALIZE, index=0
-        )
-        return _Transition((replace(job, phase=Phase.FINALIZE), task), (close,))
+            return _Transition(
+                (replace(job, phase=Phase.FINALIZE), task), (close,)
+            )
+        solve_tasks = [
+            task for task in self._job_tasks(job) if task.kind is TaskKind.SOLVE
+        ]
+        failure = _TOO_LARGE if too_large else _no_solution(solve_tasks)
+        transition = self._end(job, Phase.FAILED, failure)
+        return replace(transition, effects=(*transition.effects, close))
 
     def _start_group(self, job: Job) -> _Transition | None:
         """Starts K solve tasks together, or fewer after the group wait."""
@@ -922,8 +994,12 @@ class Scheduler:
         )
 
     def _fail(self, task: Task, reason: str) -> _Transition:
-        """Ends an attempt: retries it, or fails the task (ADR 0013, 0014)."""
+        """Ends an attempt: retries it, or fails the task (ADR 0013, 0014).
+
+        The worker is told, as it may still be running the attempt.
+        """
         job = self.jobs[task.job_id]
+        cancel = Send(task.worker, _cancel(_attempt(task)))
         if task.kind is TaskKind.SOLVE:
             lost = tuple(
                 replace(self.islands[job.id, i], lost=True)
@@ -935,17 +1011,17 @@ class Scheduler:
                 if owner[0] != task.id
             }
             rows: tuple[Row, ...] = (
-                replace(task, state=TaskState.FAILED),
+                replace(task, state=TaskState.FAILED, failure=reason),
                 *lost,
             )
-            return _Transition(rows, (SetPool(job.id, live),))
+            return _Transition(rows, (SetPool(job.id, live), cancel))
         if task.attempt >= self._settings.max_attempts:
             failure = (
                 f"{task.kind} task {task.index} failed {task.attempt} times, "
                 f"last: {reason}"
             )
             return self._end(job, Phase.FAILED, failure)
-        return _Transition((replace(task, state=TaskState.PENDING),))
+        return _Transition((replace(task, state=TaskState.PENDING),), (cancel,))
 
     def _end(
         self,
@@ -967,10 +1043,7 @@ class Scheduler:
             elif task.state in {TaskState.PENDING, TaskState.LEASED}:
                 rows.append(replace(task, state=TaskState.FAILED))
                 if task.state is TaskState.LEASED:
-                    cancel = vrp_pb2.OrchestratorMessage(
-                        cancel=vrp_pb2.Cancel(attempt=_attempt(task))
-                    )
-                    effects.append(Send(task.worker, cancel))
+                    effects.append(Send(task.worker, _cancel(_attempt(task))))
         if job.phase is Phase.SOLVE:
             effects.append(SetPool(job.id, {}))
         return _Transition(tuple(rows), tuple(effects))
@@ -1058,9 +1131,11 @@ class Scheduler:
         if self._clock() - job.solve_started_at >= limit:
             return True
         stagnation = job.parameters.stagnation_seconds
+        # Nothing stagnates before a first solution, or with no group running.
+        if stagnation <= 0 or not job.convergence or not self._round_tasks(job):
+            return False
         now = self._monotonic()
-        last = self._last_improvement.get(job.id, now)
-        return stagnation > 0 and now - last >= stagnation
+        return now - self._last_improvement.get(job.id, now) >= stagnation
 
     def _firm_deadline(self, task: Task) -> None:
         self._deadlines[task.id] = self._lease_deadline()
@@ -1106,6 +1181,7 @@ class Scheduler:
             assignment.distance.first_row = task.first_row
             assignment.distance.row_count = task.row_count
             assignment.distance.upload_url = upload_url
+            assignment.distance.edge_cost = job.problem.edge_cost
         elif task.kind is TaskKind.SOLVE:
             self._fill_solve(assignment.solve, task, job, islands)
         else:
@@ -1129,6 +1205,7 @@ class Scheduler:
                 first_row=chunk.first_row,
                 row_count=chunk.row_count,
                 url=self._store.url(chunk.object_key, upload=False),
+                sha256=chunk.object_sha256,
             )
         if islands is None:
             islands = [self.islands[job.id, i] for i in task.islands]
@@ -1153,6 +1230,13 @@ class Scheduler:
         finalize.upload_url = upload_url
         finalize.parameters.CopyFrom(job.parameters)
         tasks = self._job_tasks(job)
+        # Results record the values used, where 0 asked for a default. The
+        # last round that started counts: a restart may never have.
+        rounds = [t.solve_round for t in tasks if t.kind is TaskKind.SOLVE]
+        finalize.parameters.task_count = rounds.count(max(rounds))
+        finalize.parameters.islands_per_task = max(
+            1, job.parameters.islands_per_task
+        )
         builds = {(t.worker, t.build, t.gpu) for t in tasks if t.attempt > 0}
         for name, build, gpu in sorted(builds):
             finalize.workers.add(name=name, build=build, gpu=gpu)
@@ -1186,10 +1270,24 @@ def _confirm(task: Task, report: vrp_pb2.TaskReport) -> Send:
     return Send(task.worker, message)
 
 
+def _cancel(attempt: vrp_pb2.Attempt) -> vrp_pb2.OrchestratorMessage:
+    return vrp_pb2.OrchestratorMessage(cancel=vrp_pb2.Cancel(attempt=attempt))
+
+
 def _stop(task: Task) -> vrp_pb2.OrchestratorMessage:
     return vrp_pb2.OrchestratorMessage(
         stop=vrp_pb2.StopSolve(attempt=_attempt(task))
     )
+
+
+def _no_solution(tasks: list[Task]) -> str:
+    """Why a job's solve tasks left no solution, naming a failure if any."""
+    failures = [t.failure for t in tasks if t.state is TaskState.FAILED]
+    if not failures:
+        return "no feasible solution found"
+    if len(failures) == len(tasks):
+        return f"every solve task failed: {failures[-1]}"
+    return f"no feasible solution found; a solve task failed: {failures[-1]}"
 
 
 def _graph_key(graph: Graph, name: str) -> str:

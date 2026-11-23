@@ -41,8 +41,8 @@ class Island {
  public:
   // `matrix` must outlive the island. Fails with kInvalidArgument if
   // ValidateProblem rejects the problem, the matrix has another number of
-  // stops, or a parameter is out of range, and with kInternal if a CUDA call
-  // fails.
+  // stops, or a parameter is out of range, and with kInternal or kDeviceLost
+  // if a CUDA call fails.
   static StatusOr<Island> Create(const DistanceMatrix& matrix,
                                  const Problem& problem,
                                  const IslandParameters& parameters,
@@ -54,7 +54,7 @@ class Island {
 
   // One batch of children: random tours until the initial population is
   // complete, then crossovers of parents, each split, improved and added to
-  // the population. Fails with kInternal if a CUDA call fails.
+  // the population. Fails with kInternal or kDeviceLost if a CUDA call fails.
   Status Step();
 
   // Adds a solution from another island (ADR 0004). Fails with

@@ -29,7 +29,7 @@ class DistanceBatch {
 
   // `graph` must outlive the batch. Fails with kInvalidArgument if there are
   // no sources, more than kMaxSources, or a source does not exist, and with
-  // kInternal if a CUDA call fails.
+  // kInternal or kDeviceLost if a CUDA call fails.
   static StatusOr<DistanceBatch> Start(const DeviceGraph& graph,
                                        std::span<const NodeId> sources);
   // A temporary graph would be freed while the batch still uses it.
@@ -37,14 +37,16 @@ class DistanceBatch {
                                        std::span<const NodeId>) = delete;
 
   // Runs a few kernel launches, one short step (ADR 0024), and returns true
-  // once every cost is final. Fails with kInternal if a CUDA call fails.
+  // once every cost is final. Fails with kInternal or kDeviceLost if a CUDA
+  // call fails.
   StatusOr<bool> Step();
 
   // The costs from each source to each stop, row-major: entry
   // `i * stops.size() + j` is the cost from `sources[i]` to `stops[j]`, or
   // kNoRoute if there is no path or it costs kNoRoute or more. Fails with
   // kFailedPrecondition until `Step` has returned true, with kInvalidArgument
-  // if a stop does not exist, and with kInternal if a CUDA call fails.
+  // if a stop does not exist, and with kInternal or kDeviceLost if a CUDA call
+  // fails.
   [[nodiscard]] StatusOr<std::vector<Cost>> Costs(
       std::span<const NodeId> stops) const;
 

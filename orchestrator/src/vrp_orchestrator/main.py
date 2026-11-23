@@ -43,6 +43,7 @@ from vrp_orchestrator.telemetry import (
 _EXPIRY_SECONDS: Final = 24 * 3600
 _GAUGE_SECONDS: Final = 5.0
 _STOP_SECONDS: Final = 5.0
+_MIN_PING_MS: Final = 5000
 
 
 def main(argv: Sequence[str] | None = None) -> int:
@@ -142,7 +143,12 @@ async def serve(config: Config) -> None:
 
 def _grpc_server(config: Config, services: Services) -> grpc.aio.Server:
     server = grpc.aio.server(
-        interceptors=[AuthInterceptor(TokenFile(config.tokens), ROLES)]
+        interceptors=[AuthInterceptor(TokenFile(config.tokens), ROLES)],
+        # Workers ping an otherwise quiet stream to notice a lost connection
+        # within a lease; by default, gRPC would close it for doing so.
+        options=[
+            ("grpc.http2.min_ping_interval_without_data_ms", _MIN_PING_MS)
+        ],
     )
     server.add_generic_rpc_handlers(services.handlers())
     if config.certificate is not None and config.key is not None:
@@ -178,8 +184,12 @@ async def _logged(work: Coroutine[object, object, None]) -> None:
 async def _expire(artifacts: ArtifactManager) -> None:
     """Deletes expired results and matrices once a day (ADR 0016)."""
     while True:
-        deleted = await artifacts.expire(dt.datetime.now(dt.UTC))
-        log.info("deleted %d expired objects", deleted)
+        try:
+            deleted = await artifacts.expire(dt.datetime.now(dt.UTC))
+        except Exception:  # noqa: BLE001  # logged; the next run catches up
+            log.exception("deleting expired objects failed")
+        else:
+            log.info("deleted %d expired objects", deleted)
         await asyncio.sleep(_EXPIRY_SECONDS)
 
 

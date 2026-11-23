@@ -55,7 +55,7 @@ Checks: >
 WarningsAsErrors: '*'
 
 # Only report issues in our own code, not in GoogleTest or system headers.
-HeaderFilterRegex: '.*[/\\](core|bench)[/\\](include|src|tests)[/\\].*'
+HeaderFilterRegex: '.*[/\\](core|bench|worker)[/\\](include|src|tests)[/\\].*'
 
 FormatStyle: file
 

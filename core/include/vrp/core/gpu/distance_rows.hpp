@@ -22,7 +22,7 @@ namespace vrp::core::gpu {
 // Fails with kInvalidArgument if the rows are not all in `stops` or a stop
 // does not exist, with kFailedPrecondition if a pair of stops has no route,
 // which ADR 0011 treats as a bug, with kCancelled if `stop_requested`
-// returned true, and with kInternal if a CUDA call fails.
+// returned true, and with kInternal or kDeviceLost if a CUDA call fails.
 [[nodiscard]] StatusOr<std::vector<Cost>> ComputeDistanceRows(
     const DeviceGraph& graph, std::span<const NodeId> stops,
     std::size_t first_row, std::size_t row_count,

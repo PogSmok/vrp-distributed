@@ -56,7 +56,14 @@ A job fails with a reason, which polls show:
 - `customers too far from every road: <stops>`: PREPARE could not snap them
   within the snap distance (ADR 0006);
 - `<kind> task <index> failed 3 times, last: <reason>`;
-- `no feasible solution found`: no island found one (ADR 0018).
+- `<kind> task <index>: <reason>`: a worker reported a failure that retrying
+  cannot help, such as a stored matrix chunk that fails its SHA-256 (ADR 0014);
+- `the problem needs more GPU memory than any worker has`: when the solve
+  group's wait ended, no connected worker could fit it;
+- `every solve task failed: <reason>`: no island has a solution because
+  their tasks failed, as with a GPU out of memory;
+- `no feasible solution found`: the islands ran, and none found one
+  (ADR 0018); if some of their tasks failed, one failure follows it.
 
 ## Client calls
 
@@ -155,11 +162,20 @@ fails, so a lost check or a missing final report cannot stall the job.
 
 **Failures.** A `TaskFailure` ends the attempt. A PREPARE, DISTANCE or
 FINALIZE task is then given out again, as the next attempt; after its third,
-the job fails. A SOLVE task is not: its islands are lost (ADR 0014).
+the job fails. A retry goes to a different connected worker if there is
+one, and waits for it if it is busy. A SOLVE task is not given out again:
+its islands are lost (ADR 0014). A failure marked `permanent` fails the job
+at once, with its reason. The worker keeps a failure until the `Cancel` that
+answers it and sends it again after a reconnect, so the orchestrator must
+answer every failure it acts on with a `Cancel`: a failure lost otherwise
+would leave a lease that heartbeats extend forever.
 
-**Cancel** stops an attempt at once, and no report follows. **UrlRequest**
-asks for fresh presigned URLs: the orchestrator sends the attempt's
-`Assignment` again, and the worker takes only its URLs.
+**Cancel** stops an attempt at once, and no report follows. The orchestrator
+also sends it when it fails an attempt, and when a new session lists an
+attempt the worker no longer holds, finished or lost; the worker then drops
+the attempt and any report it keeps of it. **UrlRequest** asks for fresh
+presigned URLs: the orchestrator sends the attempt's `Assignment` again, and
+the worker takes only its URLs.
 
 **Logs.** `LogBatch` carries JSON-line log records, which the orchestrator
 writes into its own log (ADR 0010).
@@ -169,7 +185,7 @@ writes into its own log (ADR 0010).
 | Kind     | The assignment carries                           | The worker reports                             |
 |----------|--------------------------------------------------|------------------------------------------------|
 | PREPARE  | The problem, the snap distance                   | Each stop's node, or the stops too far         |
-| DISTANCE | The stops' nodes, a range of rows, an upload URL | An `Upload` of the rows                        |
+| DISTANCE | The stops' nodes, edge cost, rows, an upload URL | An `Upload` of the rows                        |
 | SOLVE    | The problem, the matrix chunks, islands, seeds   | `SolveProgress`, a final one after `StopSolve` |
 | FINALIZE | The best solution, its metadata, an upload URL   | An `Upload` of the result file                 |
 
@@ -223,6 +239,9 @@ sequenceDiagram
 - **The database is down:** heartbeats and polls are still answered, new
   jobs are refused with `UNAVAILABLE`, and nothing is assigned until it is
   back (ADR 0021).
+- **The object store is down:** workers retry their transfers and keep their
+  leases; a transfer still failing after 10 minutes fails its attempt
+  (ADR 0014).
 
 ## Objects
 
@@ -240,4 +259,5 @@ done, its failed attempts' objects are deleted (ADR 0016).
 
 A matrix chunk is `row_count` rows of the `(n + 1) × (n + 1)` matrix
 (ADR 0011), row-major, each entry an unsigned 32-bit little-endian cost;
-`4294967295` would mean no route, which ADR 0011 treats as a bug.
+`4294967295` would mean no route, which ADR 0011 treats as a bug. The
+reader checks each chunk against the SHA-256 in its `MatrixChunk`.

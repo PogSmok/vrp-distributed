@@ -56,7 +56,9 @@ message Solution {
 }
 
 message ConvergencePoint {
-  double seconds = 1;  // since the solve phase started
+  // Since the solve phase started; an island's count from the start of its
+  // solve task, matrix download included.
+  double seconds = 1;
   uint64 cost = 2;
 }
 
@@ -239,6 +241,9 @@ message TaskReport {
 message TaskFailure {
   Attempt attempt = 1;
   string reason = 2;
+  // Retrying cannot help, as with a corrupt stored object: the job fails with
+  // this reason (ADR 0014).
+  bool permanent = 3;
 }
 
 // Asks for fresh presigned URLs for an attempt's objects (ADR 0009). The
@@ -309,12 +314,14 @@ message DistanceTask {
   uint32 first_row = 2;
   uint32 row_count = 3;
   string upload_url = 4;
+  EdgeCost edge_cost = 5;
 }
 
 message MatrixChunk {
   uint32 first_row = 1;
   uint32 row_count = 2;
   string url = 3;
+  string sha256 = 4;
 }
 
 message IslandStart {
@@ -351,7 +358,7 @@ message FinalizeTask {
   Solution solution = 3;
   uint64 cost = 4;
   string upload_url = 5;
-  SolveParameters parameters = 6;
+  SolveParameters parameters = 6;  // the values used: no 0 for a default
   repeated WorkerBuild workers = 7;
   repeated IslandHistory islands = 8;
 }
@@ -368,7 +375,9 @@ message Assignment {
   }
 }
 
-// Stops an attempt at once; no report follows.
+// Stops an attempt at once; no report follows. Also sent for an attempt the
+// orchestrator has failed, and for one a new session lists but no longer
+// holds, so that the worker drops it and any report it keeps of it.
 message Cancel {
   Attempt attempt = 1;
 }

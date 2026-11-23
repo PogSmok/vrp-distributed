@@ -85,6 +85,8 @@ def _rows() -> tuple[Graph, Job, Task, Island]:
         solve_round=1,
         islands=(2, 3),
         object_key="key",
+        object_sha256="sha",
+        failure="why",
     )
     island = Island(
         job_id=job.id,
