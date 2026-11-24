@@ -192,11 +192,11 @@ target GPU, and the worker installed as a systemd or WinSW service. The
 distance phase has a 5-minute target for 5,000 customers; the only
 measurement at that size, on a synthetic grid, took about 34 minutes.
 Benchmarks and integration tests on several machines come next. The default
-of 5 islands per GPU has not been benchmarked against fewer. The components'
+of 5 islands per worker has not been benchmarked against fewer. The components'
 READMEs list their known limits: [worker](worker/README.md) (graph parsing
 and the stall check, log rotation, untested threads),
 [client](client/README.md) (sign-in per tab, large road plans, untested map code)
-and [orchestrator](orchestrator/README.md) (the GPU memory check).
+and [orchestrator](orchestrator/README.md) (the memory check).
 Certificates renew only by hand, once a year ([deploy](deploy/README.md#start-it)).
 
 [docs/quality-attributes.md](docs/quality-attributes.md) lists every target

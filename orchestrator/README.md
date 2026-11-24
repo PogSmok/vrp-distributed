@@ -83,14 +83,18 @@ and creates the bucket if it is missing; SIGTERM or Ctrl+C stops it.
   the database while workers resend what was not confirmed.
 - **Defaults** are in `scheduler.Settings`. The leases last 30 s and the
   group waits 60 s; a task has 3 attempts, and the solve phase restarts at
-  most once. The GPU memory check (ADR 0007) counts what each phase
-  allocates: the graph, plus one distance batch in DISTANCE, or the shared
-  matrix and each island's working memory in SOLVE. A CPU worker reports its
-  RAM as GPU memory, so the same check applies (ADR 0037).
+  most once.
+- **CPU and GPU workers** (ADR 0039). The memory check (ADR 0007) counts
+  what each phase allocates on the worker's device: the graph, plus one
+  distance batch in DISTANCE on a GPU or one search per thread on a CPU, or
+  the shared matrix and each island's working memory in SOLVE. A CPU
+  worker's RAM also holds the graph's both directions. SOLVE goes to GPU
+  workers first and the other phases to CPU workers first, and a solve
+  group waits up to the group wait for its preferred workers.
 
 Known limits, to change when they matter:
 
-- **The GPU memory check counts the graph in SOLVE**, although the worker
+- **The memory check counts the graph in SOLVE**, although a GPU worker
   frees it then; on a GPU with little room, a solve task may wait for no
   reason.
 

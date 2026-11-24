@@ -51,8 +51,8 @@ _PHASES: Final = {
 }
 _MAX_LATITUDE: Final = 90.0
 _MAX_LONGITUDE: Final = 180.0
-_TOO_LARGE: Final = "the problem needs more GPU memory than any worker has"
-# `IslandParameters`' defaults, which size an island's GPU memory.
+_TOO_LARGE: Final = "the problem needs more memory than any worker has"
+# `IslandParameters`' defaults, which size an island's memory.
 _NEIGHBORS: Final = 20
 _BATCH: Final = 8
 
@@ -586,16 +586,19 @@ class Scheduler:
             or _parameters_error(request.parameters)
         )
         if not error and graph is not None:
-            need = max(
-                _distance_bytes(graph, len(request.problem.customers) + 1),
-                _solve_bytes(graph, request.problem, request.parameters),
-            )
-            sizes = [
-                worker.register.gpu_memory_bytes
+            # Each phase needs a worker it fits, not necessarily the same one.
+            connected = [
+                worker.register
                 for worker in self._workers.values()
                 if worker.connected
             ]
-            if sizes and max(sizes) < need:
+            if connected and not all(
+                any(
+                    _fits(r, phase, graph, request.problem, request.parameters)
+                    for r in connected
+                )
+                for phase in (Phase.DISTANCE, Phase.SOLVE)
+            ):
                 error = _TOO_LARGE
         if error:
             refusal = Refusal(grpc.StatusCode.INVALID_ARGUMENT, error)
@@ -866,9 +869,8 @@ class Scheduler:
         tasks = self._job_tasks(job)
         pending = [task for task in tasks if task.state is TaskState.PENDING]
         if pending:
-            need = self._gpu_need(job)
-            placed = self._place(pending, need)
-            if placed is None and self._too_large(job, need):
+            placed = self._place(pending, job)
+            if placed is None and self._too_large(job):
                 return self._end(job, Phase.FAILED, _TOO_LARGE)
             return None if placed is None else self._assign(*placed)
         if job.phase is Phase.DISTANCE and all(
@@ -879,26 +881,22 @@ class Scheduler:
             return _Transition((replace(job, phase=Phase.SOLVE),))
         return None
 
-    def _place(self, pending: list[Task], need: int) -> tuple[Task, str] | None:
+    def _place(self, pending: list[Task], job: Job) -> tuple[Task, str] | None:
         """The next task and its worker, if one can take it now.
 
-        A retry waits for another connected worker with `need` bytes of GPU
-        memory, as the last attempt's failure may be its worker's.
+        A retry waits for another connected worker with room for it, as the
+        last attempt's failure may be its worker's.
         """
-        capable = {
-            name
-            for name, worker in self._workers.items()
-            if worker.connected and worker.register.gpu_memory_bytes >= need
-        }
+        capable = set(self._workers_for(job, idle=False))
         for task in sorted(pending, key=lambda t: t.index):
-            for worker in self._available(need):
+            for worker in self._workers_for(job, idle=True):
                 if worker != task.worker or capable == {worker}:
                     return task, worker
         return None
 
     def _next_solve(self, job: Job) -> _Transition | None:
         tasks = self._round_tasks(job)
-        too_large = not tasks and self._too_large(job, self._gpu_need(job))
+        too_large = not tasks and self._too_large(job)
         # A restarted round whose time ran out while it waited has no group
         # to start: one started now would never be told to stop.
         if not tasks and not too_large and not self._solve_over(job):
@@ -917,27 +915,14 @@ class Scheduler:
             return _Transition((replace(job, solve_round=job.solve_round + 1),))
         return self._end_solve(job, too_large=too_large)
 
-    def _gpu_need(self, job: Job) -> int:
-        """The GPU memory a task of the job's phase takes (ADR 0007)."""
-        graph = self.graphs[job.graph_version]
-        if job.phase is Phase.DISTANCE:
-            return _distance_bytes(graph, len(job.problem.customers) + 1)
-        if job.phase is Phase.SOLVE:
-            return _solve_bytes(graph, job.problem, job.parameters)
-        return 0  # PREPARE and FINALIZE run on the CPU
-
-    def _too_large(self, job: Job, need: int) -> bool:
+    def _too_large(self, job: Job) -> bool:
         """Whether the phase's wait has passed and no connected worker fits."""
         now = self._monotonic()
         waited = now - self._group_wait_since.get(job.id, now)
-        sizes = [
-            worker.register.gpu_memory_bytes
-            for worker in self._workers.values()
-            if worker.connected
-        ]
-        if not sizes or _longer(self._settings.group_wait, waited):
+        connected = any(worker.connected for worker in self._workers.values())
+        if not connected or _longer(self._settings.group_wait, waited):
             return False
-        return max(sizes) < need
+        return not self._workers_for(job, idle=False)
 
     def _end_solve(self, job: Job, *, too_large: bool) -> _Transition:
         """Moves on to FINALIZE, or fails a job with no solution."""
@@ -960,17 +945,23 @@ class Scheduler:
         return replace(transition, effects=(*transition.effects, close))
 
     def _start_group(self, job: Job) -> _Transition | None:
-        """Starts K solve tasks together, or fewer after the group wait."""
+        """Starts K solve tasks on the best K workers, or on idle ones later.
+
+        It waits for the best workers until the group wait has passed.
+        """
         parameters = job.parameters
         per_task = max(1, parameters.islands_per_task)
         wanted = parameters.task_count or sum(
             worker.connected for worker in self._workers.values()
         )
-        workers = self._available(self._gpu_need(job))
+        workers = self._workers_for(job, idle=True)
+        # A GPU worker may still be finishing DISTANCE.
+        best = self._workers_for(job, idle=False)[: max(1, wanted)]
         now = self._monotonic()
         waited = now - self._group_wait_since.get(job.id, now)
         if not workers or (
-            len(workers) < wanted and _longer(self._settings.group_wait, waited)
+            (len(workers) < wanted or not set(best) <= set(workers))
+            and _longer(self._settings.group_wait, waited)
         ):
             return None
         first = sum(1 for (job_id, _) in self.islands if job_id == job.id)
@@ -1104,15 +1095,46 @@ class Scheduler:
             if task.state is TaskState.LEASED and task.worker == worker
         ]
 
-    def _available(self, need: int) -> list[str]:
-        """Idle workers with `need` bytes of GPU memory, by name."""
+    def _workers_for(self, job: Job, *, idle: bool) -> list[str]:
+        """Connected workers with room for the job's phase, best first.
+
+        SOLVE prefers GPU workers and every other phase CPU workers, then by
+        name (ADR 0039).
+
+        Args:
+            job: The job.
+            idle: Only those that can take a task now.
+        """
+
+        def rank(name: str) -> tuple[bool, str]:
+            on_cpu = _on_cpu(self._workers[name].register)
+            return on_cpu == (job.phase is Phase.SOLVE), name
+
+        graph = self.graphs[job.graph_version]
         return sorted(
-            name
-            for name, worker in self._workers.items()
-            if worker.connected
-            and worker.idle
-            and worker.register.gpu_memory_bytes >= need
-            and all(task.id in self._checking for task in self._leases(name))
+            (
+                name
+                for name, worker in self._workers.items()
+                if worker.connected
+                and _fits(
+                    worker.register,
+                    job.phase,
+                    graph,
+                    job.problem,
+                    job.parameters,
+                )
+                and (
+                    not idle
+                    or (
+                        worker.idle
+                        and all(
+                            task.id in self._checking
+                            for task in self._leases(name)
+                        )
+                    )
+                )
+            ),
+            key=rank,
         )
 
     def _job_tasks(self, job: Job) -> list[Task]:
@@ -1355,7 +1377,7 @@ def _distance_bytes(graph: Graph, stops: int) -> int:
 
 
 def _island_bytes(problem: vrp_pb2.Problem) -> int:
-    """An island's own GPU memory, as `LocalSearch::Create` allocates it."""
+    """An island's own memory, as the GPU's `LocalSearch` allocates it."""
     customers = len(problem.customers)
     stops = customers + 1
     neighbors = min(_NEIGHBORS, max(customers - 1, 0))
@@ -1368,16 +1390,50 @@ def _island_bytes(problem: vrp_pb2.Problem) -> int:
     return 4 * stops * (1 + neighbors) + _BATCH * per_solution
 
 
-def _solve_bytes(
-    graph: Graph, problem: vrp_pb2.Problem, parameters: vrp_pb2.SolveParameters
-) -> int:
-    """A solve task's GPU memory (ADR 0007).
+def _host_graph_bytes(graph: Graph) -> int:
+    """The graph in RAM (`RoadGraph`), both directions with two weights."""
+    nodes = graph.node_count
+    return 16 * nodes + 2 * (4 * (nodes + 1) + 12 * graph.edge_count)
 
-    The graph, the one matrix its islands share, and each island's own data.
+
+def _on_cpu(register: vrp_pb2.Register) -> bool:
+    return register.device_kind == vrp_pb2.DEVICE_KIND_CPU
+
+
+def _fits(
+    register: vrp_pb2.Register,
+    phase: Phase,
+    graph: Graph,
+    problem: vrp_pb2.Problem,
+    parameters: vrp_pb2.SolveParameters,
+) -> bool:
+    """Whether a task of `phase` fits the worker's memory (ADR 0007, 0039).
+
+    A GPU worker is checked for GPU memory, a CPU worker for RAM, which also
+    holds the graph and, in DISTANCE, one search per thread: 12 bytes of
+    costs and about one 16-byte queue entry per node. SOLVE holds the one
+    matrix its islands share, and each island's own data. PREPARE and
+    FINALIZE are not checked.
     """
     stops = len(problem.customers) + 1
-    islands = max(1, parameters.islands_per_task)
-    return _graph_bytes(graph) + 4 * stops**2 + islands * _island_bytes(problem)
+    on_cpu = _on_cpu(register)
+    if phase is Phase.DISTANCE:
+        need = (
+            _host_graph_bytes(graph)
+            + max(1, register.threads) * 28 * graph.node_count
+            if on_cpu
+            else _distance_bytes(graph, stops)
+        )
+    elif phase is Phase.SOLVE:
+        islands = max(1, parameters.islands_per_task)
+        need = (
+            (_host_graph_bytes(graph) if on_cpu else _graph_bytes(graph))
+            + 4 * stops**2
+            + islands * _island_bytes(problem)
+        )
+    else:
+        need = 0
+    return register.gpu_memory_bytes >= need
 
 
 def _problem_error(problem: vrp_pb2.Problem) -> str:  # noqa: PLR0911

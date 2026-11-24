@@ -131,11 +131,25 @@ class Harness:
         return response.job_id
 
     def connect(
-        self, worker: str, *held: vrp_pb2.Attempt, gpu: int = _GPU
+        self,
+        worker: str,
+        *held: vrp_pb2.Attempt,
+        gpu: int = _GPU,
+        cpu_threads: int = 0,
     ) -> None:
-        """Opens a session for `worker`, holding `held`."""
+        """Opens a session for `worker`, holding `held`.
+
+        It is a CPU worker if `cpu_threads` is set.
+        """
         register = vrp_pb2.Register(
-            build="b1", gpu="RTX 5050", gpu_memory_bytes=gpu, held=held
+            build="b1",
+            gpu="RTX 5050",
+            gpu_memory_bytes=gpu,
+            held=held,
+            device_kind=vrp_pb2.DEVICE_KIND_CPU
+            if cpu_threads
+            else vrp_pb2.DEVICE_KIND_GPU,
+            threads=cpu_threads,
         )
         self.session[worker] = next(self._sessions)
         self.handle(SessionOpened(worker, self.session[worker], register))
@@ -873,8 +887,56 @@ def test_a_job_no_connected_worker_fits_fails(gpu: int, phase: Phase) -> None:
         worker.work()
     h.advance(61)
     assert h.job(job_id).failure == (
-        "the problem needs more GPU memory than any worker has"
+        "the problem needs more memory than any worker has"
     )
+
+
+@pytest.mark.parametrize(("cpu", "gpu"), [("a", "b"), ("b", "a")])
+def test_each_phase_prefers_its_kind_of_worker(cpu: str, gpu: str) -> None:
+    # ADR 0039: SOLVE goes to a GPU first, every other phase to a CPU, so
+    # whichever sorts first by name.
+    h = Harness()
+    h.connect(cpu, cpu_threads=1)
+    h.connect(gpu)
+    h.idle(cpu, gpu)
+    h.submit(task_count=1)
+    prepare = h.assignments(cpu)[-1]
+    assert prepare.HasField("prepare")
+    stops = vrp_pb2.PrepareResult(stop_nodes=[0, 5, 7])
+    h.report(cpu, prepare.attempt, prepare=stops)
+    h.idle(cpu)
+    # Two DISTANCE tasks: the CPU takes the first, the idle GPU the second.
+    for worker in (cpu, gpu):
+        assert h.assignments(worker)[-1].HasField("distance")
+        h.upload(worker, h.assignments(worker)[-1].attempt)
+        h.idle(worker)
+    assert h.assignments(gpu)[-1].HasField("solve")
+    assert h.assignments(cpu)[-1].HasField("distance")
+
+
+def test_each_phase_runs_on_the_one_worker_it_fits() -> None:
+    # 100 threads' searches do not fit the CPU worker's RAM, nor an island
+    # the GPU's memory; neither worker fits the whole job.
+    h = Harness()
+    h.connect("cpu", gpu=3_000, cpu_threads=100)
+    h.connect("gpu", gpu=2_000)
+    h.idle("cpu", "gpu")
+    h.submit(task_count=1, islands_per_task=1)
+    prepare = h.assignments("cpu")[-1]
+    stops = vrp_pb2.PrepareResult(stop_nodes=[0, 5, 7])
+    h.report("cpu", prepare.attempt, prepare=stops)
+    h.idle("cpu")
+    for _ in range(2):
+        h.upload("gpu", h.assignments("gpu")[-1].attempt)
+        h.idle("gpu")
+    assert [a.WhichOneof("task") for a in h.assignments("cpu")] == [
+        "prepare",
+        "solve",
+    ]
+    assert [a.WhichOneof("task") for a in h.assignments("gpu")] == [
+        "distance",
+        "distance",
+    ]
 
 
 _CHAOS = (
