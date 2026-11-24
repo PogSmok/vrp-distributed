@@ -11,11 +11,11 @@ rules both sides follow. Persisted state is described in
 All three services run on the orchestrator's one gRPC port, over TLS with
 the lab CA's certificate (ADR 0009).
 
-| Service         | Who calls it              | Role              |
-|-----------------|---------------------------|-------------------|
-| `ClientService` | The Streamlit client      | `client`, `admin` |
-| `AdminService`  | The preprocessor, scripts | `admin`           |
-| `WorkerService` | Workers                   | `worker`          |
+| Service         | Who calls it            | Role              |
+|-----------------|-------------------------|-------------------|
+| `ClientService` | The Streamlit client    | `client`, `admin` |
+| `AdminService`  | The admin tool, scripts | `admin`           |
+| `WorkerService` | Workers                 | `worker`          |
 
 Every call carries its named token as `authorization: Bearer <token>`. A
 call without a valid token ends with `UNAUTHENTICATED`, and one from a role
@@ -53,8 +53,8 @@ stateDiagram-v2
 
 A job fails with a reason, which polls show:
 
-- `customers too far from every road: <stops>`: PREPARE could not snap them
-  within the snap distance (ADR 0006);
+- `customers too far from every road: <stops>`: PREPARE could not snap these
+  stop numbers within the snap distance, 0 being the depot (ADR 0006);
 - `<kind> task <index> failed 3 times, last: <reason>`;
 - `<kind> task <index>: <reason>`: a worker reported a failure that retrying
   cannot help, such as a stored matrix chunk that fails its SHA-256 (ADR 0014);
@@ -109,8 +109,9 @@ the SHA-256.
 
 ## Admin calls
 
-The preprocessor uploads a graph version's files to `graphs/<version>/`
-(`docs/formats/graph.md`), then calls `RegisterGraph`. The orchestrator
+The admin tool (`deploy/admin.py register-graph`) uploads a graph version's
+files to `graphs/<version>/` (`docs/formats/graph.md`), then calls
+`RegisterGraph`. The orchestrator
 checks the files against their manifest first; only a registered version is
 offered to jobs and workers (ADR 0015).
 
@@ -224,9 +225,9 @@ sequenceDiagram
   after 60 s; it does not change once started (ADR 0013).
 - **Progress** reports only feasible solutions; a report holds each island's
   best and its new convergence points (ADR 0018).
-- **Migrants** go through the orchestrator's pool, which keeps each
-  island's latest one, and accepts it only from the attempt that runs the
-  island. A `MigrantRequest` is answered, when another island has one, with
+- **Migrants** go through the orchestrator's pool every 2 s (ADR 0034),
+  which keeps each island's latest one, and accepts it only from the attempt
+  that runs the island. A `MigrantRequest` is answered, when another island has one, with
   a `Migrant` addressed to the island that asked. A receiving island checks
   a migrant before using it (ADR 0004).
 - **Road plans.** A worker routes its latest best plan on the roads at low

@@ -1,6 +1,6 @@
 # 0015. Graph versioning and catalogue
 
-- **Status:** Accepted
+- **Status:** Accepted; upload and registration refined by 0031
 - **Date:** 2026-11-21
 - **Related:** 0005, 0006, 0007, 0016, 0020, 0027
 

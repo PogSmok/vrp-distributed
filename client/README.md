@@ -45,9 +45,11 @@ Everything drawn is a real solution from the solver. The page follows the
 system's dark or light theme.
 
 The map's libraries come from jsDelivr, at exact versions with integrity
-hashes, and its basemap from [OpenFreeMap](https://openfreemap.org). Without
-the basemap, routes still draw on a plain background. Map data is
-© OpenStreetMap contributors.
+hashes, and its basemap from [OpenFreeMap](https://openfreemap.org), with
+tiles from [OpenMapTiles](https://openmaptiles.org). Without the basemap,
+routes still draw on a plain background. Routes and basemap are
+© [OpenStreetMap contributors](https://www.openstreetmap.org/copyright), and
+the map always shows that credit, which MapLibre never collapses.
 
 ## Running it
 
@@ -72,4 +74,6 @@ Known limits, to change when they matter:
 - Replay holds at most 60 of the plans seen since the page opened, fewer when
   they are large.
 - A road plan over 3 MB is not sent, so a very large problem may show its
-  routes only once the result arrives.
+  routes only once the result arrives; untested at 5,000 customers.
+- No login, so the client listens on localhost only (ADR 0031).
+- The job view and the map's JavaScript have no automated tests.

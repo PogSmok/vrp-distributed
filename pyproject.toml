@@ -22,6 +22,8 @@ dev = [
 ]
 # What `deploy/admin.py` needs in the image, to make the lab CA.
 deploy = ["cryptography==50.0.2"]
+# The docs' spelling check in CI, locked and audited like the rest.
+docs = ["codespell==2.4.1"]
 
 # ---- ruff: formatter and linter ----------------------------------------------
 
@@ -61,6 +63,12 @@ ban-relative-imports = "all"
 [tool.ruff.lint.per-file-ignores]
 "**/hatch_build.py" = ["INP001"]  # A build hook, not part of a package.
 "deploy/admin.py" = ["INP001"]  # A script run in the image.
+"docs/architecture/export.py" = ["INP001"]  # A script, not a package.
+"deploy/demo.py" = [
+    "INP001",  # A script run from the checkout.
+    "S603",    # Runs Docker and uv with arguments it builds itself.
+    "S607",
+]
 "**/tests/**" = [
     "S101",     # pytest is built on assert.
     "PLR2004",  # Tests compare against literal expected values.
@@ -77,6 +85,8 @@ files = [
     "client/src",
     "client/tests",
     "deploy/admin.py",
+    "deploy/demo.py",
+    "docs/architecture/export.py",
     "orchestrator/src",
     "orchestrator/tests",
     "preprocessor/src",
@@ -115,6 +125,11 @@ ignore_errors = true
 [[tool.mypy.overrides]]
 module = ["pyrosm", "pyrosm.*"]
 ignore_missing_imports = true
+
+# ---- codespell: spelling, in CI ----------------------------------------------
+
+[tool.codespell]
+skip = "uv.lock,*.bin,*.png,*.gif,vrp-overview.json"
 
 # ---- pytest and coverage -----------------------------------------------------
 

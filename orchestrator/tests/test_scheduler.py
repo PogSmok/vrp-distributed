@@ -666,6 +666,17 @@ def test_finalize_records_the_parameters_used() -> None:
     assert (parameters.task_count, parameters.islands_per_task) == (1, 1)
 
 
+def test_the_result_names_a_worker_that_only_finalized() -> None:
+    h = Harness()
+    h.run_to_solve("w1", task_count=1)
+    solve = h.assignments("w1")[-1].attempt
+    h.report("w1", solve, solve=_progress(0, 50, (1.0, 50), final=True))
+    h.connect("w2")
+    h.idle("w2")
+    workers = h.assignments("w2")[-1].finalize.workers
+    assert {worker.name for worker in workers} == {"w1", "w2"}
+
+
 def test_a_restart_gives_leases_a_grace_period_and_keeps_listed_ones() -> None:
     before = Harness()
     before.connect("w1")

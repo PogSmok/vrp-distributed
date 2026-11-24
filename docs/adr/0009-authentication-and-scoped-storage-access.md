@@ -1,6 +1,6 @@
 # 0009. Authentication of clients and workers; scoped storage access
 
-- **Status:** Accepted
+- **Status:** Accepted; storage credentials refined by 0031
 - **Date:** 2026-11-21
 - **Related:** 0004, 0007, 0013, 0014, 0016, 0019
 

@@ -63,5 +63,6 @@ changing the meaning of a field increments `schema_version`.
 `docs/formats/graph.md` for a problem with two vehicles of capacity 1, so
 that each customer gets its own vehicle; its parameters are abbreviated.
 Route 0 leaves along edge 0 and its shape point; route 1 returns from node 2
-through node 1, along edge 3 and its two shape points. vrp-core's writer reproduces it byte for byte, so the
-spec itself, not the implementation, defines what is correct.
+through node 1, along edge 3 and its two shape points. vrp-core's writer
+reproduces it byte for byte, so the spec itself, not the implementation,
+defines what is correct.

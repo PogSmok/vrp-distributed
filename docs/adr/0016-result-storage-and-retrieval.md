@@ -1,6 +1,6 @@
 # 0016. Result storage and retrieval
 
-- **Status:** Accepted
+- **Status:** Accepted; lifecycle rule replaced by 0029
 - **Date:** 2026-11-21
 - **Related:** 0009, 0013, 0014, 0015, 0022, 0025
 

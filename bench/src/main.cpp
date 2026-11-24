@@ -109,8 +109,7 @@ Status WriteFile(const std::string& path, std::string_view text) {
   return {};
 }
 
-// A ParallelFor over every hardware thread, as the worker's pool will be
-// (ADR 0025).
+// A ParallelFor over every hardware thread, like the worker's (ADR 0025).
 void ThreadedFor(
     std::size_t count,
     const std::function<void(std::size_t begin, std::size_t end)>& body) {

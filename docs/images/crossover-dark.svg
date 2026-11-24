@@ -1,0 +1,95 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 980 360" width="980" height="360" font-family="-apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" role="img" aria-label="Order crossover of two giant tours, then Split into routes">
+  <title>Order crossover of two giant tours, then Split into routes</title>
+  <defs><marker id="arrow-pink" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M 0 0 L 10 5 L 0 10 z" fill="#db61a2"/></marker></defs>
+  <text x="203.0" y="32" font-size="11" font-weight="400" fill="#9198a1" text-anchor="middle">0</text>
+  <text x="255.0" y="32" font-size="11" font-weight="400" fill="#9198a1" text-anchor="middle">1</text>
+  <text x="307.0" y="32" font-size="11" font-weight="400" fill="#9198a1" text-anchor="middle">2</text>
+  <text x="359.0" y="32" font-size="11" font-weight="400" fill="#9198a1" text-anchor="middle">3</text>
+  <text x="411.0" y="32" font-size="11" font-weight="400" fill="#9198a1" text-anchor="middle">4</text>
+  <text x="463.0" y="32" font-size="11" font-weight="400" fill="#9198a1" text-anchor="middle">5</text>
+  <text x="515.0" y="32" font-size="11" font-weight="400" fill="#9198a1" text-anchor="middle">6</text>
+  <text x="567.0" y="32" font-size="11" font-weight="400" fill="#9198a1" text-anchor="middle">7</text>
+  <text x="619.0" y="32" font-size="11" font-weight="400" fill="#9198a1" text-anchor="middle">8</text>
+  <text x="671.0" y="32" font-size="11" font-weight="400" fill="#9198a1" text-anchor="middle">9</text>
+  <text x="164" y="32" font-size="11" font-weight="400" fill="#9198a1" text-anchor="end">position</text>
+  <text x="164" y="69" font-size="13" font-weight="600" fill="#e6edf3" text-anchor="end">Parent A</text>
+  <rect x="180" y="44" width="46" height="38" rx="6" fill="#161b22" stroke="#3d444d" stroke-width="1.2"/>
+  <text x="203.0" y="69" font-size="15" font-weight="600" fill="#9198a1" text-anchor="middle">1</text>
+  <rect x="232" y="44" width="46" height="38" rx="6" fill="#161b22" stroke="#3d444d" stroke-width="1.2"/>
+  <text x="255.0" y="69" font-size="15" font-weight="600" fill="#9198a1" text-anchor="middle">2</text>
+  <rect x="284" y="44" width="46" height="38" rx="6" fill="#161b22" stroke="#3d444d" stroke-width="1.2"/>
+  <text x="307.0" y="69" font-size="15" font-weight="600" fill="#9198a1" text-anchor="middle">3</text>
+  <rect x="336" y="44" width="46" height="38" rx="6" fill="#0c2d6b" stroke="#4493f8" stroke-width="1.2"/>
+  <text x="359.0" y="69" font-size="15" font-weight="600" fill="#e6edf3" text-anchor="middle">4</text>
+  <rect x="388" y="44" width="46" height="38" rx="6" fill="#0c2d6b" stroke="#4493f8" stroke-width="1.2"/>
+  <text x="411.0" y="69" font-size="15" font-weight="600" fill="#e6edf3" text-anchor="middle">5</text>
+  <rect x="440" y="44" width="46" height="38" rx="6" fill="#0c2d6b" stroke="#4493f8" stroke-width="1.2"/>
+  <text x="463.0" y="69" font-size="15" font-weight="600" fill="#e6edf3" text-anchor="middle">6</text>
+  <rect x="492" y="44" width="46" height="38" rx="6" fill="#0c2d6b" stroke="#4493f8" stroke-width="1.2"/>
+  <text x="515.0" y="69" font-size="15" font-weight="600" fill="#e6edf3" text-anchor="middle">7</text>
+  <rect x="544" y="44" width="46" height="38" rx="6" fill="#161b22" stroke="#3d444d" stroke-width="1.2"/>
+  <text x="567.0" y="69" font-size="15" font-weight="600" fill="#9198a1" text-anchor="middle">8</text>
+  <rect x="596" y="44" width="46" height="38" rx="6" fill="#161b22" stroke="#3d444d" stroke-width="1.2"/>
+  <text x="619.0" y="69" font-size="15" font-weight="600" fill="#9198a1" text-anchor="middle">9</text>
+  <rect x="648" y="44" width="46" height="38" rx="6" fill="#161b22" stroke="#3d444d" stroke-width="1.2"/>
+  <text x="671.0" y="69" font-size="15" font-weight="600" fill="#9198a1" text-anchor="middle">10</text>
+  <text x="164" y="125" font-size="13" font-weight="600" fill="#e6edf3" text-anchor="end">Parent B</text>
+  <rect x="180" y="100" width="46" height="38" rx="6" fill="#42062a" stroke="#db61a2" stroke-width="1.2"/>
+  <text x="203.0" y="125" font-size="15" font-weight="600" fill="#e6edf3" text-anchor="middle">9</text>
+  <rect x="232" y="100" width="46" height="38" rx="6" fill="#42062a" stroke="#db61a2" stroke-width="1.2"/>
+  <text x="255.0" y="125" font-size="15" font-weight="600" fill="#e6edf3" text-anchor="middle">3</text>
+  <rect x="284" y="100" width="46" height="38" rx="6" fill="#21262d" stroke="#3d444d" stroke-width="1.2"/>
+  <text x="307.0" y="125" font-size="15" font-weight="600" fill="#9198a1" text-anchor="middle">7</text>
+  <rect x="336" y="100" width="46" height="38" rx="6" fill="#42062a" stroke="#db61a2" stroke-width="1.2"/>
+  <text x="359.0" y="125" font-size="15" font-weight="600" fill="#e6edf3" text-anchor="middle">1</text>
+  <rect x="388" y="100" width="46" height="38" rx="6" fill="#42062a" stroke="#db61a2" stroke-width="1.2"/>
+  <text x="411.0" y="125" font-size="15" font-weight="600" fill="#e6edf3" text-anchor="middle">10</text>
+  <rect x="440" y="100" width="46" height="38" rx="6" fill="#21262d" stroke="#3d444d" stroke-width="1.2"/>
+  <text x="463.0" y="125" font-size="15" font-weight="600" fill="#9198a1" text-anchor="middle">4</text>
+  <rect x="492" y="100" width="46" height="38" rx="6" fill="#21262d" stroke="#3d444d" stroke-width="1.2"/>
+  <text x="515.0" y="125" font-size="15" font-weight="600" fill="#9198a1" text-anchor="middle">6</text>
+  <rect x="544" y="100" width="46" height="38" rx="6" fill="#42062a" stroke="#db61a2" stroke-width="1.2"/>
+  <text x="567.0" y="125" font-size="15" font-weight="600" fill="#e6edf3" text-anchor="middle">2</text>
+  <rect x="596" y="100" width="46" height="38" rx="6" fill="#42062a" stroke="#db61a2" stroke-width="1.2"/>
+  <text x="619.0" y="125" font-size="15" font-weight="600" fill="#e6edf3" text-anchor="middle">8</text>
+  <rect x="648" y="100" width="46" height="38" rx="6" fill="#21262d" stroke="#3d444d" stroke-width="1.2"/>
+  <text x="671.0" y="125" font-size="15" font-weight="600" fill="#9198a1" text-anchor="middle">5</text>
+  <text x="164" y="201" font-size="13" font-weight="600" fill="#e6edf3" text-anchor="end">Child</text>
+  <rect x="180" y="176" width="46" height="38" rx="6" fill="#42062a" stroke="#db61a2" stroke-width="1.2"/>
+  <text x="203.0" y="201" font-size="15" font-weight="600" fill="#e6edf3" text-anchor="middle">3</text>
+  <rect x="232" y="176" width="46" height="38" rx="6" fill="#42062a" stroke="#db61a2" stroke-width="1.2"/>
+  <text x="255.0" y="201" font-size="15" font-weight="600" fill="#e6edf3" text-anchor="middle">1</text>
+  <rect x="284" y="176" width="46" height="38" rx="6" fill="#42062a" stroke="#db61a2" stroke-width="1.2"/>
+  <text x="307.0" y="201" font-size="15" font-weight="600" fill="#e6edf3" text-anchor="middle">10</text>
+  <rect x="336" y="176" width="46" height="38" rx="6" fill="#0c2d6b" stroke="#4493f8" stroke-width="1.2"/>
+  <text x="359.0" y="201" font-size="15" font-weight="600" fill="#e6edf3" text-anchor="middle">4</text>
+  <rect x="388" y="176" width="46" height="38" rx="6" fill="#0c2d6b" stroke="#4493f8" stroke-width="1.2"/>
+  <text x="411.0" y="201" font-size="15" font-weight="600" fill="#e6edf3" text-anchor="middle">5</text>
+  <rect x="440" y="176" width="46" height="38" rx="6" fill="#0c2d6b" stroke="#4493f8" stroke-width="1.2"/>
+  <text x="463.0" y="201" font-size="15" font-weight="600" fill="#e6edf3" text-anchor="middle">6</text>
+  <rect x="492" y="176" width="46" height="38" rx="6" fill="#0c2d6b" stroke="#4493f8" stroke-width="1.2"/>
+  <text x="515.0" y="201" font-size="15" font-weight="600" fill="#e6edf3" text-anchor="middle">7</text>
+  <rect x="544" y="176" width="46" height="38" rx="6" fill="#42062a" stroke="#db61a2" stroke-width="1.2"/>
+  <text x="567.0" y="201" font-size="15" font-weight="600" fill="#e6edf3" text-anchor="middle">2</text>
+  <rect x="596" y="176" width="46" height="38" rx="6" fill="#42062a" stroke="#db61a2" stroke-width="1.2"/>
+  <text x="619.0" y="201" font-size="15" font-weight="600" fill="#e6edf3" text-anchor="middle">8</text>
+  <rect x="648" y="176" width="46" height="38" rx="6" fill="#42062a" stroke="#db61a2" stroke-width="1.2"/>
+  <text x="671.0" y="201" font-size="15" font-weight="600" fill="#e6edf3" text-anchor="middle">9</text>
+  <text x="714" y="68" font-size="12" font-weight="600" fill="#4493f8" text-anchor="start">copy positions 3–6</text>
+  <text x="714" y="124" font-size="12" font-weight="600" fill="#db61a2" text-anchor="start">read from position 7 on,</text>
+  <text x="714" y="140" font-size="12" font-weight="600" fill="#db61a2" text-anchor="start">skipping 4 5 6 7</text>
+  <text x="714" y="200" font-size="12" font-weight="600" fill="#e6edf3" text-anchor="start">fill from position 7,</text>
+  <text x="714" y="216" font-size="12" font-weight="600" fill="#e6edf3" text-anchor="start">wrapping around</text>
+  <path d="M 567 140 L 567 174" fill="none" stroke="#db61a2" stroke-width="1.6" stroke-linejoin="round" marker-end="url(#arrow-pink)"/>
+  <text x="164" y="290" font-size="13" font-weight="600" fill="#e6edf3" text-anchor="end">Split</text>
+  <rect x="180" y="266" width="140" height="40" rx="20" fill="#04260f" stroke="#3fb950" stroke-width="1.2"/>
+  <text x="250.0" y="291" font-size="15" font-weight="600" fill="#e6edf3" text-anchor="middle">3  1  10</text>
+  <text x="250.0" y="324" font-size="11.5" font-weight="400" fill="#9198a1" text-anchor="middle">route 1</text>
+  <rect x="336" y="266" width="180" height="40" rx="20" fill="#04260f" stroke="#3fb950" stroke-width="1.2"/>
+  <text x="426.0" y="291" font-size="15" font-weight="600" fill="#e6edf3" text-anchor="middle">4  5  6  7</text>
+  <text x="426.0" y="324" font-size="11.5" font-weight="400" fill="#9198a1" text-anchor="middle">route 2</text>
+  <rect x="532" y="266" width="140" height="40" rx="20" fill="#04260f" stroke="#3fb950" stroke-width="1.2"/>
+  <text x="602.0" y="291" font-size="15" font-weight="600" fill="#e6edf3" text-anchor="middle">2  8  9</text>
+  <text x="602.0" y="324" font-size="11.5" font-weight="400" fill="#9198a1" text-anchor="middle">route 3</text>
+  <text x="698" y="291" font-size="12" font-weight="400" fill="#9198a1" text-anchor="start">then the GPU local search repairs and improves it</text>
+</svg>

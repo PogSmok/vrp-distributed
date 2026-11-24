@@ -366,9 +366,48 @@ jobs:
           docker compose -f deploy/compose.yaml exec -T backup sh /backup.sh now
           docker compose -f deploy/compose.yaml exec -T backup sh /backup.sh verify
 
+      # ADR 0003: the exporter's role sees statistics, not job tables.
+      - name: Check that the monitoring role reads statistics but not jobs
+        run: |
+          psql() { docker compose -f deploy/compose.yaml exec -T postgres psql -U vrp_monitor -d vrp "$@"; }
+          psql -Atc 'SELECT count(*) FROM pg_stat_activity'
+          denied=$(psql -c 'SELECT 1 FROM jobs' 2>&1 || true)
+          grep -q 'permission denied for table jobs' <<<"$denied"
+
       - name: Show the logs
         if: failure()
         run: docker compose -f deploy/compose.yaml logs --no-color
+
+  docs:
+    name: Links and spelling
+    runs-on: ubuntu-latest
+    env:
+      LYCHEE: lycheeverse/lychee@sha256:eaff3e0a13603c9a701accfcc84f44158bb77bf36ecfa4622b626056c3463892  # 0.24.2
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Set up uv and Python
+        uses: astral-sh/setup-uv@1db35dd8eee11c5894872e0b383ae6c406cf738d  # v10.4.0
+        with:
+          version: '0.13.7'
+          python-version: '3.14'
+          enable-cache: true
+
+      - name: Check spelling
+        run: git ls-files -z | xargs -0 uv run --locked --only-group docs codespell
+
+      # Every link inside the repository, images and anchors included; the
+      # weekly `links` workflow checks the outside ones.
+      - name: Check links in the repository
+        run: >
+          docker run --rm -v "$PWD:/repo:ro" -w /repo "$LYCHEE"
+          --offline --include-fragments --root-dir /repo --no-progress
+          '**/*.md'
+
+      - name: Check that the architecture views match the model
+        run: |
+          uv run --no-project docs/architecture/export.py
+          git diff --exit-code -- README.md deploy/README.md docs/architecture/README.md
 
   python-audit:
     name: Python dependency audit

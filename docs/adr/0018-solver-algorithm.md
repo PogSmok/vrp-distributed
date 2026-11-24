@@ -1,6 +1,6 @@
 # 0018. Solver algorithm: memetic search on giant tours, local search on the GPU
 
-- **Status:** Accepted
+- **Status:** Accepted; exchange interval set by 0034
 - **Date:** 2026-11-21
 - **Related:** 0004, 0006, 0011, 0013, 0020, 0023, 0024
 

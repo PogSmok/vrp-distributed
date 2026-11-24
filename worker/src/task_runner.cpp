@@ -50,7 +50,7 @@ static_assert(std::endian::native == std::endian::little);
 constexpr auto kIdleWait = 100ms;
 constexpr auto kBeatInterval = 1s;
 constexpr auto kReportInterval = 3s;    // ADR 0014: every few seconds
-constexpr auto kExchangeInterval = 2s;  // ADR 0018: every few generations
+constexpr auto kExchangeInterval = 2s;  // ADR 0034
 constexpr auto kUrlWait = 5s;           // before asking for fresh URLs again
 constexpr auto kUrlPoll = 50ms;
 constexpr std::uint64_t kMaxGraphFileBytes = std::uint64_t{1} << 36;

@@ -21,15 +21,24 @@ const BASEMAPS = {
   dark: "https://tiles.openfreemap.org/styles/dark",
   light: "https://tiles.openfreemap.org/styles/positron",
 };
+// The routes are OSM data too, so OSM's credit stays without the basemap's.
 const plainBasemap = (theme) => ({
   version: 8,
-  sources: {},
+  sources: {
+    osm: {
+      type: "geojson",
+      data: { type: "FeatureCollection", features: [] },
+      attribution:
+        '<a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">© OpenStreetMap contributors</a>',
+    },
+  },
   layers: [
     {
       id: "page",
       type: "background",
       paint: { "background-color": theme === "dark" ? "#05070e" : "#eef2f8" },
     },
+    { id: "osm", type: "line", source: "osm" }, // credits the source
   ],
 });
 const ISLAND_COLORS = {
@@ -780,7 +789,7 @@ const map = new maplibregl.Map({
   style: BASEMAPS[initialTheme],
   center: [21.0122, 52.2297],
   zoom: 10.6,
-  attributionControl: { compact: true },
+  attributionControl: { compact: false }, // the credit is never collapsed
   dragRotate: false,
   pitchWithRotate: false,
 });
