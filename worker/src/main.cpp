@@ -64,14 +64,16 @@ core::StatusOr<std::string> ReadFile(const std::filesystem::path& path) {
 
 // What the worker computes on, as it registers (protocol.md).
 struct Device {
+  v1::DeviceKind kind = v1::DEVICE_KIND_GPU;
   std::string name;
   std::uint64_t memory_bytes = 0;
   std::string driver;
+  std::uint32_t threads = 0;
 };
 
 #ifdef VRP_WORKER_CPU
-// The CPU stands in for a GPU (ADR 0037): the machine's memory is what the
-// orchestrator checks a problem against.
+// The orchestrator checks a problem against the machine's memory and threads
+// (ADR 0037, 0039).
 core::StatusOr<Device> ThisDevice(Metrics& /*metrics*/, Log& /*log*/) {
   std::uint64_t memory_bytes = 0;
 #ifdef _WIN32
@@ -91,11 +93,13 @@ core::StatusOr<Device> ThisDevice(Metrics& /*metrics*/, Log& /*log*/) {
   if (memory_bytes == 0) {
     return core::InternalError("cannot read the machine's memory size");
   }
-  return Device{
-      .name = std::format("CPU ({} threads)",
-                          std::max(1U, std::thread::hardware_concurrency())),
-      .memory_bytes = memory_bytes,
-      .driver = ""};
+  const std::uint32_t threads =
+      std::max(1U, std::thread::hardware_concurrency());
+  return Device{.kind = v1::DEVICE_KIND_CPU,
+                .name = std::format("CPU ({} threads)", threads),
+                .memory_bytes = memory_bytes,
+                .driver = "",
+                .threads = threads};
 }
 #else
 core::StatusOr<Device> ThisDevice(Metrics& metrics, Log& log) {
@@ -132,6 +136,8 @@ Status Run(const std::filesystem::path& config_path) {
   identity.set_gpu_memory_bytes(device.memory_bytes);
   identity.set_driver(device.driver);
   identity.set_metrics_address(config.metrics_address);
+  identity.set_device_kind(device.kind);
+  identity.set_threads(device.threads);
 
   Queues queues;
   const ObjectTransfer transfer(config.ca_certificate, metrics);

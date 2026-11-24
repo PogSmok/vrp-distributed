@@ -137,6 +137,7 @@ ctest --preset worker-cpu
 
 It runs the same tasks with `vrp-core`'s CPU code on every thread, and finds
 the same solutions as a GPU would with the same seed, more slowly (see
-`bench/README.md`). It registers as GPU `CPU (N threads)`, with the machine's
-memory as GPU memory, and has no GPU metrics. The orchestrator does not tell
-the two kinds apart, so a job may run on both at once (ADR 0037).
+`bench/README.md`). It registers as a CPU named `CPU (N threads)`, with the
+machine's memory and thread count, and has no GPU metrics. A job can run on
+both kinds at once: the orchestrator gives SOLVE to GPU workers first and the
+other phases to CPU workers first (ADR 0037, 0039).

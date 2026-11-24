@@ -58,7 +58,7 @@ A job fails with a reason, which polls show:
 - `<kind> task <index> failed 3 times, last: <reason>`;
 - `<kind> task <index>: <reason>`: a worker reported a failure that retrying
   cannot help, such as a stored matrix chunk that fails its SHA-256 (ADR 0014);
-- `the problem needs more GPU memory than any worker has`: 60 s into
+- `the problem needs more memory than any worker has`: 60 s into
   DISTANCE or SOLVE, no connected worker could fit that phase's tasks;
 - `every solve task failed: <reason>`: no island has a solution because
   their tasks failed, as with a GPU out of memory;
@@ -93,7 +93,8 @@ sequenceDiagram
 | `CancelJob`   | `NOT_FOUND`, `PERMISSION_DENIED`                       |
 
 - `INVALID_ARGUMENT`: an unknown graph version, a problem that cannot be
-  feasible, bad parameters, or a problem too large for every worker's GPU.
+  feasible, bad parameters, or a problem with a phase that fits no
+  connected worker.
 - `UNAVAILABLE`: the database is down.
 - `NOT_FOUND`: no such job. `PERMISSION_DENIED`: another client's job.
 - `RESOURCE_EXHAUSTED`: a poll within 0.5 s of the client's last.
@@ -142,7 +143,9 @@ sequenceDiagram
 **Sessions.** The first message is a `Register`. A new session from the
 same worker, identified by its token name, replaces the old one. The worker
 lists in `held` the attempts it still has; they keep their leases, and the
-others fail at once (ADR 0014).
+others fail at once (ADR 0014). It also gives its device: a GPU, or since
+1.1 a CPU with its thread count, which the orchestrator uses to place tasks
+and check their memory (ADR 0039).
 
 **Attempts.** Every message about a task carries its `Attempt`: the task ID
 and the attempt number. The orchestrator ignores a report for any attempt

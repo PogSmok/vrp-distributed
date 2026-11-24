@@ -95,7 +95,7 @@ def _new_job_form(api: Orchestrator, jobs: JobViews) -> vrp_pb2.Problem | None:
     limit = st.number_input("Time limit (s)", 1, 86_400, 60)
     stagnation = st.number_input("Stop after no gain (s, 0 = never)", 0)
     tasks = st.number_input("Workers (0 = all)", 0, 64, 0)
-    islands = st.number_input("Islands per GPU", 1, 32, 5)
+    islands = st.number_input("Islands per worker", 1, 32, 5)
     seed = st.number_input("Seed", 0, _MAX_INTEGER, 1)
     if st.button(
         "Start solving",

@@ -12,7 +12,7 @@ enum ProtocolVersion {
   option allow_alias = true;
   PROTOCOL_VERSION_UNSPECIFIED = 0;
   PROTOCOL_VERSION_MAJOR = 1;
-  PROTOCOL_VERSION_MINOR = 0;
+  PROTOCOL_VERSION_MINOR = 1;
 }
 
 // ---- Problems and solutions --------------------------------------------------
@@ -212,11 +212,20 @@ message Register {
   uint32 protocol_major = 1;
   uint32 protocol_minor = 2;
   string build = 3;
-  string gpu = 4;
-  uint64 gpu_memory_bytes = 5;
+  string gpu = 4;               // the device's name
+  uint64 gpu_memory_bytes = 5;  // the device's memory: RAM on a CPU
   string driver = 6;
   string metrics_address = 7;  // host:port of its /metrics (ADR 0010)
   repeated Attempt held = 8;
+  DeviceKind device_kind = 9;  // since 1.1 (ADR 0039)
+  uint32 threads = 10;         // a CPU worker's compute threads; since 1.1
+}
+
+// What a worker computes on (ADR 0037, 0039).
+enum DeviceKind {
+  DEVICE_KIND_UNSPECIFIED = 0;  // a worker before 1.1, so a GPU
+  DEVICE_KIND_GPU = 1;
+  DEVICE_KIND_CPU = 2;
 }
 
 // The worker has no task and can take one.

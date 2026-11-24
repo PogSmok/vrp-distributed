@@ -75,5 +75,6 @@ are never reused; present tense.
 | 0034 | [Islands exchange migrants on a 2-second timer](0034-migrant-exchange-on-a-timer.md)                                       | Accepted                       |
 | 0035 | [GPU build targets: compute capability 6.1 and 12.0](0035-gpu-build-targets.md)                                            | Accepted                       |
 | 0036 | [Orchestrator tests use a Python fake worker](0036-orchestrator-tests-use-a-python-fake-worker.md)                         | Accepted                       |
-| 0037 | [A worker built without CUDA runs on the CPU](0037-worker-without-cuda-runs-on-the-cpu.md)                                 | Accepted                       |
+| 0037 | [A worker built without CUDA runs on the CPU](0037-worker-without-cuda-runs-on-the-cpu.md)                                 | Accepted; extended by 0039     |
 | 0038 | [Users sign in to the client with their own tokens](0038-client-sign-in-with-named-tokens.md)                              | Accepted                       |
+| 0039 | [CPU and GPU workers share jobs; each phase prefers its kind](0039-each-phase-prefers-its-kind-of-worker.md)               | Accepted                       |

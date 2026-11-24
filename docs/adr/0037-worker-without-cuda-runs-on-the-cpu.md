@@ -1,6 +1,6 @@
 # 0037. A worker built without CUDA runs on the CPU
 
-- **Status:** Accepted
+- **Status:** Accepted; the scheduler tells the kinds apart since 0039
 - **Date:** 2026-11-24
 - **Related:** 0011, 0017, 0018, 0023, 0024, 0032
 
