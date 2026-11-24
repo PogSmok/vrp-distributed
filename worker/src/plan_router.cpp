@@ -135,10 +135,13 @@ void PlanRouter::Run(const std::stop_token& stop) {
       std::optional<Offered> plan;
       {
         std::unique_lock lock(mutex_);
-        if (!ready_.wait(lock, stop, [this] { return next_.has_value(); })) {
-          return;
-        }
+        // Returns with nothing waiting only once stopped.
+        static_cast<void>(
+            ready_.wait(lock, stop, [this] { return next_.has_value(); }));
         plan.swap(next_);
+      }
+      if (!plan.has_value()) {
+        return;
       }
       RouteAndSend(roads.Value(), *plan, stop);
     }
