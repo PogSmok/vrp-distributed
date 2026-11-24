@@ -64,3 +64,22 @@ the solver's speedup is that of the local search diluted by it. Time a
 The problem file format is `docs/formats/problem.md`. Parsing it is the
 `vrp_bench_files` library, which builds without CUDA so that its tests run
 in every CI job.
+
+## Jobs on a cluster
+
+`jobs.py` submits jobs to a running deployment through the client API and
+times their phases, with whichever workers are connected. It needs a client
+token (`deploy/README.md`) and the lab's CA:
+
+```sh
+export VRP_ORCHESTRATOR=server.lab:50051 VRP_CA_CERTIFICATE=ca.pem VRP_TOKEN=<token>
+uv run --package vrp-client python bench/jobs.py --graph-version <version> \
+    --problem problem.json --seconds 60 --seed 1 --repeat 1 --out jobs.jsonl
+```
+
+Each job appends a JSON line: when each phase began, in seconds from
+submission, the job's convergence over SOLVE, the cost, and each worker's
+best island. Phases are seen by polls about a second apart. `--tasks 1`
+gives SOLVE one task, which the scheduler places on a GPU worker if one is
+connected (ADR 0039). It exits with 1 if a job did not finish. CI runs it
+against the Compose stack with a CPU worker.

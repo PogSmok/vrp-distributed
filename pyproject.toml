@@ -64,6 +64,7 @@ ban-relative-imports = "all"
 "**/hatch_build.py" = ["INP001"]  # A build hook, not part of a package.
 "deploy/admin.py" = ["INP001"]  # A script run in the image.
 "docs/architecture/export.py" = ["INP001"]  # A script, not a package.
+"bench/jobs.py" = ["INP001"]  # A script run from the checkout.
 "deploy/demo.py" = [
     "INP001",  # A script run from the checkout.
     "S603",    # Runs Docker and uv with arguments it builds itself.
@@ -82,6 +83,7 @@ ban-relative-imports = "all"
 [tool.mypy]
 python_version = "3.13"
 files = [
+    "bench/jobs.py",
     "client/src",
     "client/tests",
     "deploy/admin.py",

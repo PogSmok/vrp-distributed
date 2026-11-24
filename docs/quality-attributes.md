@@ -59,11 +59,11 @@ values. "(assumption)" marks facts about hardware we do not know yet;
 | Attribute              | Target                                       | Measured so far                                                                                        |
 |------------------------|----------------------------------------------|--------------------------------------------------------------------------------------------------------|
 | Road graph size        | Fits the smallest GPU                        | Mazowieckie (303 MB extract): 629,318 nodes, 1,343,118 edges, `graph.bin` 23.7 MB; GTX 1060 not tried  |
-| Graph load             | Measured apart from scaling                  | `graph.bin` of Mazowieckie parsed in 2.2 s (Debug build); download —                                   |
-| Distance phase length  | Under 5 minutes for 5,000 customers on 1 GPU | 500 customers: 4.5 s (Debug build). 5,000 customers, on a synthetic grid only: about 34 minutes        |
-| Distance phase scaling | Near-linear from 1 to N GPUs (hypothesis)    | —                                                                                                      |
-| Finalize phase length  | Under 1 minute for 5,000 customers           | 500 customers (529 legs): 24 to 26 s (Debug build)                                                     |
-| Solve phase scaling    | Faster time-to-target than 1 GPU             | —                                                                                                      |
+| Graph load             | Measured apart from scaling                  | Mazowieckie: under 1 s from the server's store, 1.8 s over a 100 Mbps LAN. A 300 MB synthetic graph of 5 million nodes: 3 s, and 27 s over the LAN |
+| Distance phase length  | Under 5 minutes for 5,000 customers on 1 GPU | 5,000 customers on Mazowieckie: 56 s on an RTX 5050 Laptop GPU, 54 s on a 12-thread CPU                |
+| Distance phase scaling | Near-linear from 1 to N GPUs (hypothesis)    | That GPU and that CPU together: 30 s, 1.8 times the faster one alone, 92% of their summed throughput   |
+| Finalize phase length  | Under 1 minute for 5,000 customers           | 1.8 s on an i7-14650HX (24 threads), 7.2 s on a 12-thread CPU                                          |
+| Solve phase scaling    | Faster time-to-target than 1 GPU             | 1,000 customers, 60 s, 5 seeds: GPU and CPU together reach the GPU's median cost in 4 of 5 runs, the GPU alone in 3; median cost 0.32% lower |
 | Migration overhead     | Negligible against iteration time            | — (the worker exports `vrp_worker_migration_seconds`)                                                  |
 | Solver quality         | Gap to CVRPLIB best known solutions          | No CVRPLIB gaps yet. 400 customers, 5 islands, 40 s: 817.4 and 821.0 km in two runs, 22 of 24 vehicles |
 | Orchestrator restart   | No accepted job lost                         | Scheduler tests; checked by hand during SOLVE ([failure modes](failure-modes.md))                      |
@@ -73,3 +73,10 @@ values. "(assumption)" marks facts about hardware we do not know yet;
 
 Importing the 303 MB Mazowieckie extract, which has no target, took 82 s and
 148 s in two runs on the development machine, with byte-identical output.
+
+The phase lengths and scaling above were measured on 2026-11-24 with
+`bench/jobs.py` (`bench/README.md`) on two laptops on a 100 Mbps LAN, release
+builds, with phase times from polls about a second apart. The GTX 1060 that
+the targets were set for was not available. The CPU worker gains less in
+SOLVE than in DISTANCE: alone, the 12-thread CPU ended 0.66% above the GPU's
+median cost in the same 60 s.

@@ -74,8 +74,9 @@ Known limits, to change when they matter:
   but a running one shows no stops until its result arrives.
 - Replay holds at most 60 of the plans seen since the page opened, fewer when
   they are large.
-- A road plan over 3 MB is not sent, so a very large problem may show its
-  routes only once the result arrives; untested at 5,000 customers.
+- A road plan over 3 MB is not sent, so a very large problem shows its
+  routes only once the result arrives. At 5,000 customers on Mazowieckie
+  the plan is over that limit.
 - The token is asked for again in each new tab and after a reload, since
   Streamlit keeps nothing across sessions (ADR 0038).
 - The job view and the map's JavaScript have no automated tests.
