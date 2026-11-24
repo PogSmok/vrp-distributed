@@ -69,7 +69,7 @@ are never reused; present tense.
 | 0028 | [Result artifact format: JSON, polylines in degrees](0028-result-artifact-format.md)                                       | Accepted                       |
 | 0029 | [Object store: SeaweedFS instead of MinIO](0029-object-store-seaweedfs.md)                                                 | Accepted; see 0031             |
 | 0030 | [Live map: workers route each new best plan on the roads](0030-live-map-from-island-bests.md)                              | Accepted                       |
-| 0031 | [The orchestrator and the client run in Docker Compose](0031-orchestrator-and-client-in-compose.md)                        | Accepted; see 0038             |
+| 0031 | [The orchestrator and the client run in Docker Compose](0031-orchestrator-and-client-in-compose.md)                        | Accepted; see 0038, 0040       |
 | 0032 | [Bounded store retries; a lost GPU restarts its worker](0032-bounded-store-retries-and-lost-gpu-restart.md)                | Accepted                       |
 | 0033 | [Distance batches hold one warp of 32 sources](0033-distance-batches-of-one-warp.md)                                       | Accepted                       |
 | 0034 | [Islands exchange migrants on a 2-second timer](0034-migrant-exchange-on-a-timer.md)                                       | Accepted                       |
@@ -78,3 +78,4 @@ are never reused; present tense.
 | 0037 | [A worker built without CUDA runs on the CPU](0037-worker-without-cuda-runs-on-the-cpu.md)                                 | Accepted; extended by 0039     |
 | 0038 | [Users sign in to the client with their own tokens](0038-client-sign-in-with-named-tokens.md)                              | Accepted                       |
 | 0039 | [CPU and GPU workers share jobs; each phase prefers its kind](0039-each-phase-prefers-its-kind-of-worker.md)               | Accepted                       |
+| 0040 | [Releases: images on GHCR, a deploy bundle and prebuilt workers](0040-releases-images-bundle-and-prebuilt-workers.md)      | Accepted                       |

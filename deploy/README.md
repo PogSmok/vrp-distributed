@@ -10,6 +10,16 @@ For a first run on one machine, `uv run --no-project deploy/demo.py` does the
 steps below for you: it starts the stack, imports and registers a road graph,
 and makes a worker configuration in `data/demo/` (`docs/setup.md`).
 
+**From a release**, nothing needs building (ADR 0040). Each release on GitHub
+has `vrp-deploy-<version>.tar.gz`, whose `compose.yaml` pulls that version's
+images from GHCR in place of the build below, and a worker archive for Linux
+and Windows, with CUDA or for the CPU, each with its service file.
+`SHA256SUMS` checks the downloads. While the repository is private, log in
+first with a GitHub token that can read packages:
+`docker login ghcr.io -u <user>`. The commands below then run in the
+bundle's folder, as `docker compose …` without `-f deploy/compose.yaml` or
+`--build`, and `vrp-worker` comes from its archive.
+
 The deployment view of the [architecture model](../docs/architecture/README.md):
 
 <!-- deployment:start -->
@@ -18,41 +28,41 @@ graph TB
 
     subgraph 110 ["Worker PC"]
 
-      111["<b>Worker</b><br/><small>[Container: C++ / CUDA]</small><br/>Computes distances and runs the solver on one GPU, or on the CPU if built without CUDA."]
+      111["<b>Worker</b><br/>[Container: C++ / CUDA]<br/>Computes distances and runs the solver on one GPU, or on the CPU if built without CUDA."]
     end
 
     subgraph 115 ["Admin Workstation"]
 
-      116["<b>Graph Preprocessor</b><br/><small>[Container: Python CLI / pyrosm]</small><br/>Turns OSM extracts into versioned graphs."]
+      116["<b>Graph Preprocessor</b><br/>[Container: Python CLI / pyrosm]<br/>Turns OSM extracts into versioned graphs."]
     end
 
     subgraph 91 ["Server PC"]
 
       subgraph 92 ["Docker Compose"]
 
-        100[("<b>Object Store</b><br/><small>[Container: SeaweedFS (S3)]</small><br/>Graphs, distance matrices and results.")]
-        104["<b>Prometheus</b><br/><small>[Software System]</small><br/>Collects and stores metrics."]
-        108["<b>Grafana</b><br/><small>[Software System]</small><br/>Shows dashboards."]
-        93["<b>Orchestrator</b><br/><small>[Container: Python / grpcio (asyncio)]</small><br/>Schedules jobs on workers; owns job state and the migrant pool."]
-        94["<b>Client Application</b><br/><small>[Container: Python / Streamlit]</small><br/>Submits problems, shows routes and convergence."]
-        96["<b>Admin Tool</b><br/><small>[Container: Python CLI]</small><br/>Creates secrets, issues worker configurations and client tokens, uploads and registers graphs."]
-        98[("<b>Job State DB</b><br/><small>[Container: PostgreSQL]</small><br/>Jobs, tasks, assignments, graph catalogue.")]
+        100[("<b>Object Store</b><br/>[Container: SeaweedFS (S3)]<br/>Graphs, distance matrices and results.")]
+        104["<b>Prometheus</b><br/>[Software System]<br/>Collects and stores metrics."]
+        108["<b>Grafana</b><br/>[Software System]<br/>Shows dashboards."]
+        93["<b>Orchestrator</b><br/>[Container: Python / grpcio (asyncio)]<br/>Schedules jobs on workers; owns job state and the migrant pool."]
+        94["<b>Client Application</b><br/>[Container: Python / Streamlit]<br/>Submits problems, shows routes and convergence."]
+        96["<b>Admin Tool</b><br/>[Container: Python CLI]<br/>Creates secrets, issues worker configurations and client tokens, uploads and registers graphs."]
+        98[("<b>Job State DB</b><br/>[Container: PostgreSQL]<br/>Jobs, tasks, assignments, graph catalogue.")]
       end
 
     end
 
-    93-. "Manages artifacts<br/><small>[S3 API]</small>" .->100
-    94-. "Downloads results<br/><small>[HTTPS, presigned]</small>" .->100
-    96-. "Uploads graphs<br/><small>[S3 API]</small>" .->100
-    104-. "Scrapes metrics, discovers workers<br/><small>[HTTP]</small>" .->93
+    93-. "Manages artifacts<br/>[S3 API]" .->100
+    94-. "Downloads results<br/>[HTTPS, presigned]" .->100
+    96-. "Uploads graphs<br/>[S3 API]" .->100
+    104-. "Scrapes metrics, discovers workers<br/>[HTTP]" .->93
     104-.->98
     104-.->100
     108-.->104
-    111-. "Gets tasks, reports progress, sends logs<br/><small>[gRPC/TLS]</small>" .->93
-    111-. "Reads graphs, writes results<br/><small>[HTTPS, presigned]</small>" .->100
+    111-. "Gets tasks, reports progress, sends logs<br/>[gRPC/TLS]" .->93
+    111-. "Reads graphs, writes results<br/>[HTTPS, presigned]" .->100
     104-.->111
-    94-. "Submits jobs, polls progress<br/><small>[gRPC/TLS]</small>" .->93
-    96-. "Registers graph versions<br/><small>[gRPC/TLS]</small>" .->93
+    94-. "Submits jobs, polls progress<br/>[gRPC/TLS]" .->93
+    96-. "Registers graph versions<br/>[gRPC/TLS]" .->93
     93-.->98
 
 ```

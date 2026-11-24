@@ -1,5 +1,5 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 980 360" width="980" height="360" font-family="-apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" role="img" aria-label="A job&#x27;s four phases, and which ones more GPUs speed up">
-  <title>A job&#x27;s four phases, and which ones more GPUs speed up</title>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 980 360" width="980" height="360" font-family="-apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" role="img" aria-label="A job&#x27;s four phases, and which ones more workers speed up">
+  <title>A job&#x27;s four phases, and which ones more workers speed up</title>
   <defs><marker id="arrow-muted" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M 0 0 L 10 5 L 0 10 z" fill="#9198a1"/></marker></defs>
   <rect x="20" y="20" width="220" height="64" rx="8" fill="#161b22" stroke="#3d444d" stroke-width="1.2"/>
   <rect x="20" y="28" width="3" height="48" rx="1.5" fill="#3fb950"/>
@@ -10,12 +10,12 @@
   <rect x="260" y="28" width="3" height="48" rx="1.5" fill="#4493f8"/>
   <text x="370.0" y="43.0" font-size="14" font-weight="600" fill="#e6edf3" text-anchor="middle">DISTANCE</text>
   <text x="370.0" y="60.0" font-size="11.5" font-weight="400" fill="#9198a1" text-anchor="middle">1 task per 250 rows</text>
-  <text x="370.0" y="75.0" font-size="11.5" font-weight="400" fill="#9198a1" text-anchor="middle">GPU shortest paths</text>
+  <text x="370.0" y="75.0" font-size="11.5" font-weight="400" fill="#9198a1" text-anchor="middle">shortest paths, GPU or CPU</text>
   <rect x="500" y="20" width="220" height="64" rx="8" fill="#161b22" stroke="#3d444d" stroke-width="1.2"/>
   <rect x="500" y="28" width="3" height="48" rx="1.5" fill="#db61a2"/>
   <text x="610.0" y="43.0" font-size="14" font-weight="600" fill="#e6edf3" text-anchor="middle">SOLVE</text>
   <text x="610.0" y="60.0" font-size="11.5" font-weight="400" fill="#9198a1" text-anchor="middle">K tasks × P islands</text>
-  <text x="610.0" y="75.0" font-size="11.5" font-weight="400" fill="#9198a1" text-anchor="middle">memetic search, GPU local search</text>
+  <text x="610.0" y="75.0" font-size="11.5" font-weight="400" fill="#9198a1" text-anchor="middle">memetic search, GPU or CPU</text>
   <rect x="740" y="20" width="220" height="64" rx="8" fill="#161b22" stroke="#3d444d" stroke-width="1.2"/>
   <rect x="740" y="28" width="3" height="48" rx="1.5" fill="#3fb950"/>
   <text x="850.0" y="43.0" font-size="14" font-weight="600" fill="#e6edf3" text-anchor="middle">FINALIZE</text>
@@ -24,24 +24,24 @@
   <path d="M 242 52 L 258 52" fill="none" stroke="#9198a1" stroke-width="1.6" stroke-linejoin="round" marker-end="url(#arrow-muted)"/>
   <path d="M 482 52 L 498 52" fill="none" stroke="#9198a1" stroke-width="1.6" stroke-linejoin="round" marker-end="url(#arrow-muted)"/>
   <path d="M 722 52 L 738 52" fill="none" stroke="#9198a1" stroke-width="1.6" stroke-linejoin="round" marker-end="url(#arrow-muted)"/>
-  <text x="268" y="136" font-size="11.5" font-weight="600" fill="#9198a1" text-anchor="start">GPU 1</text>
+  <text x="313" y="136" font-size="11" font-weight="600" fill="#9198a1" text-anchor="end">Worker 1</text>
   <rect x="318" y="118" width="70" height="30" rx="5" fill="#0c2d6b" stroke="#4493f8" stroke-width="1.2"/>
   <text x="353" y="138" font-size="11" font-weight="400" fill="#e6edf3" text-anchor="middle">rows 0+</text>
   <rect x="396" y="118" width="70" height="30" rx="5" fill="#0c2d6b" stroke="#4493f8" stroke-width="1.2"/>
   <text x="431" y="138" font-size="11" font-weight="400" fill="#e6edf3" text-anchor="middle">rows 750+</text>
-  <text x="268" y="198" font-size="11.5" font-weight="600" fill="#9198a1" text-anchor="start">GPU 2</text>
+  <text x="313" y="198" font-size="11" font-weight="600" fill="#9198a1" text-anchor="end">Worker 2</text>
   <rect x="318" y="180" width="70" height="30" rx="5" fill="#0c2d6b" stroke="#4493f8" stroke-width="1.2"/>
   <text x="353" y="200" font-size="11" font-weight="400" fill="#e6edf3" text-anchor="middle">rows 250+</text>
   <rect x="396" y="180" width="70" height="30" rx="5" fill="#0c2d6b" stroke="#4493f8" stroke-width="1.2"/>
   <text x="431" y="200" font-size="11" font-weight="400" fill="#e6edf3" text-anchor="middle">rows 1000+</text>
-  <text x="268" y="260" font-size="11.5" font-weight="600" fill="#9198a1" text-anchor="start">GPU 3</text>
+  <text x="313" y="260" font-size="11" font-weight="600" fill="#9198a1" text-anchor="end">Worker 3</text>
   <rect x="318" y="242" width="70" height="30" rx="5" fill="#0c2d6b" stroke="#4493f8" stroke-width="1.2"/>
   <text x="353" y="262" font-size="11" font-weight="400" fill="#e6edf3" text-anchor="middle">rows 500+</text>
   <rect x="396" y="242" width="70" height="30" rx="5" fill="#0c2d6b" stroke="#4493f8" stroke-width="1.2"/>
   <text x="431" y="262" font-size="11" font-weight="400" fill="#e6edf3" text-anchor="middle">rows 1250+</text>
   <text x="370" y="318" font-size="12" font-weight="600" fill="#e6edf3" text-anchor="middle">Rows split across workers:</text>
-  <text x="370" y="336" font-size="12" font-weight="400" fill="#9198a1" text-anchor="middle">more GPUs, a shorter phase.</text>
-  <text x="508" y="136" font-size="11.5" font-weight="600" fill="#9198a1" text-anchor="start">GPU 1</text>
+  <text x="370" y="336" font-size="12" font-weight="400" fill="#9198a1" text-anchor="middle">more workers, a shorter phase.</text>
+  <text x="551" y="136" font-size="11" font-weight="600" fill="#9198a1" text-anchor="end">Worker 1</text>
   <rect x="556" y="116" width="126" height="34" rx="17" fill="#42062a" stroke="#db61a2" stroke-width="1.2"/>
   <circle cx="576" cy="133" r="7" fill="#db61a2"/>
   <circle cx="598" cy="133" r="7" fill="#db61a2"/>
@@ -49,7 +49,7 @@
   <circle cx="642" cy="133" r="7" fill="#db61a2"/>
   <circle cx="664" cy="133" r="7" fill="#db61a2"/>
   <path d="M 684 133 L 708 183" fill="none" stroke="#db61a2" stroke-width="1.2" stroke-linejoin="round" stroke-dasharray="5 4"/>
-  <text x="508" y="198" font-size="11.5" font-weight="600" fill="#9198a1" text-anchor="start">GPU 2</text>
+  <text x="551" y="198" font-size="11" font-weight="600" fill="#9198a1" text-anchor="end">Worker 2</text>
   <rect x="556" y="178" width="126" height="34" rx="17" fill="#42062a" stroke="#db61a2" stroke-width="1.2"/>
   <circle cx="576" cy="195" r="7" fill="#db61a2"/>
   <circle cx="598" cy="195" r="7" fill="#db61a2"/>
@@ -57,7 +57,7 @@
   <circle cx="642" cy="195" r="7" fill="#db61a2"/>
   <circle cx="664" cy="195" r="7" fill="#db61a2"/>
   <path d="M 684 195 L 708 183" fill="none" stroke="#db61a2" stroke-width="1.2" stroke-linejoin="round" stroke-dasharray="5 4"/>
-  <text x="508" y="260" font-size="11.5" font-weight="600" fill="#9198a1" text-anchor="start">GPU 3</text>
+  <text x="551" y="260" font-size="11" font-weight="600" fill="#9198a1" text-anchor="end">Worker 3</text>
   <rect x="556" y="240" width="126" height="34" rx="17" fill="#42062a" stroke="#db61a2" stroke-width="1.2"/>
   <circle cx="576" cy="257" r="7" fill="#db61a2"/>
   <circle cx="598" cy="257" r="7" fill="#db61a2"/>
@@ -67,10 +67,10 @@
   <path d="M 684 257 L 708 183" fill="none" stroke="#db61a2" stroke-width="1.2" stroke-linejoin="round" stroke-dasharray="5 4"/>
   <rect x="698" y="160" width="26" height="46" rx="6" fill="#21262d" stroke="#db61a2" stroke-width="1.2"/>
   <text x="711" y="222" font-size="11" font-weight="600" fill="#db61a2" text-anchor="middle">pool</text>
-  <text x="610" y="318" font-size="12" font-weight="600" fill="#e6edf3" text-anchor="middle">Every GPU searches for the whole time:</text>
-  <text x="610" y="336" font-size="12" font-weight="400" fill="#9198a1" text-anchor="middle">more GPUs, more search in the same time.</text>
-  <text x="130" y="160" font-size="12" font-weight="400" fill="#9198a1" text-anchor="middle">Single tasks: more GPUs</text>
+  <text x="610" y="318" font-size="12" font-weight="600" fill="#e6edf3" text-anchor="middle">Every worker searches for the whole time:</text>
+  <text x="610" y="336" font-size="12" font-weight="400" fill="#9198a1" text-anchor="middle">more workers, more search in the same time.</text>
+  <text x="130" y="160" font-size="12" font-weight="400" fill="#9198a1" text-anchor="middle">Single tasks: more workers</text>
   <text x="130" y="176" font-size="12" font-weight="400" fill="#9198a1" text-anchor="middle">do not shorten them.</text>
-  <text x="850" y="160" font-size="12" font-weight="400" fill="#9198a1" text-anchor="middle">Single tasks: more GPUs</text>
+  <text x="850" y="160" font-size="12" font-weight="400" fill="#9198a1" text-anchor="middle">Single tasks: more workers</text>
   <text x="850" y="176" font-size="12" font-weight="400" fill="#9198a1" text-anchor="middle">do not shorten them.</text>
 </svg>

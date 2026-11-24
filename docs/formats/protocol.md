@@ -104,7 +104,10 @@ Cancelling a job that has ended does nothing.
 A poll answers with the points from `known_points` on, so a client sends
 how many it has. It also carries how many workers are connected, each
 island's best cost, and the job's best plan on the roads if it beats
-`known_plan_cost` (ADR 0030). The result URL is presigned and short-lived;
+`known_plan_cost` (ADR 0030). A road plan can take several MB, about 6.5 MB
+at 5,000 customers, so the orchestrator accepts messages of up to 16 MiB and
+a client must accept as much; gRPC's default is 4 MB. Workers send no plan
+over 15 MB. The result URL is presigned and short-lived;
 poll again for a fresh one. The client checks the downloaded file against
 the SHA-256.
 

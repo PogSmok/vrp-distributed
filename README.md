@@ -5,7 +5,6 @@ road networks: C++20/CUDA workers, which also build for machines without a
 GPU, a Python asyncio orchestrator, PostgreSQL, an S3 object store, and a
 Streamlit client that shows the search live on a map.
 
-<!-- The demo GIF replaces this picture once it is recorded. -->
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="docs/images/final-plan-dark.png">
   <img alt="The client's live map: 400 customers around Warsaw on 22 routes along the roads, with each island's best cost and the convergence chart" src="docs/images/final-plan-light.png">
@@ -40,7 +39,7 @@ worker can take any task ([ADR 0011](docs/adr/0011-work-split-across-gpus.md)).
 
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="docs/images/pipeline-dark.svg">
-  <img alt="PREPARE and FINALIZE are single CPU tasks; DISTANCE rows are split across GPUs; in SOLVE every GPU runs islands for the whole time limit" src="docs/images/pipeline-light.svg">
+  <img alt="PREPARE and FINALIZE are single CPU tasks; DISTANCE rows are split across workers; in SOLVE every worker runs islands for the whole time limit" src="docs/images/pipeline-light.svg">
 </picture>
 
 | Phase    | Work                                        | More workers                                        |
@@ -65,33 +64,33 @@ Which machine runs what is in the
 ```mermaid
 graph LR
 
-    1["<b>Dispatcher</b><br/><small>[Person]</small><br/>Submits problems and reviews routes."]
-    2["<b>System Administrator</b><br/><small>[Person]</small><br/>Runs the system and graph imports."]
-    30["<b>OpenStreetMap</b><br/><small>[Software System]</small><br/>Road network source (offline import)."]
-    31["<b>Prometheus</b><br/><small>[Software System]</small><br/>Collects and stores metrics."]
+    1["<b>Dispatcher</b><br/>[Person]<br/>Submits problems and reviews routes."]
+    2["<b>System Administrator</b><br/>[Person]<br/>Runs the system and graph imports."]
+    30["<b>OpenStreetMap</b><br/>[Software System]<br/>Road network source (offline import)."]
+    31["<b>Prometheus</b><br/>[Software System]<br/>Collects and stores metrics."]
 
     subgraph 3 ["VRP-Distributed"]
 
-      16["<b>Worker</b><br/><small>[Container: C++ / CUDA]</small><br/>Computes distances and runs the solver on one GPU, or on the CPU if built without CUDA."]
-      26["<b>Graph Preprocessor</b><br/><small>[Container: Python CLI / pyrosm]</small><br/>Turns OSM extracts into versioned graphs."]
-      27["<b>Admin Tool</b><br/><small>[Container: Python CLI]</small><br/>Creates secrets, issues worker configurations and client tokens, uploads and registers graphs."]
-      28[("<b>Object Store</b><br/><small>[Container: SeaweedFS (S3)]</small><br/>Graphs, distance matrices and results.")]
-      29[("<b>Job State DB</b><br/><small>[Container: PostgreSQL]</small><br/>Jobs, tasks, assignments, graph catalogue.")]
-      4["<b>Client Application</b><br/><small>[Container: Python / Streamlit]</small><br/>Submits problems, shows routes and convergence."]
-      5["<b>Orchestrator</b><br/><small>[Container: Python / grpcio (asyncio)]</small><br/>Schedules jobs on workers; owns job state and the migrant pool."]
+      16["<b>Worker</b><br/>[Container: C++ / CUDA]<br/>Computes distances and runs the solver on one GPU, or on the CPU if built without CUDA."]
+      26["<b>Graph Preprocessor</b><br/>[Container: Python CLI / pyrosm]<br/>Turns OSM extracts into versioned graphs."]
+      27["<b>Admin Tool</b><br/>[Container: Python CLI]<br/>Creates secrets, issues worker configurations and client tokens, uploads and registers graphs."]
+      28[("<b>Object Store</b><br/>[Container: SeaweedFS (S3)]<br/>Graphs, distance matrices and results.")]
+      29[("<b>Job State DB</b><br/>[Container: PostgreSQL]<br/>Jobs, tasks, assignments, graph catalogue.")]
+      4["<b>Client Application</b><br/>[Container: Python / Streamlit]<br/>Submits problems, shows routes and convergence."]
+      5["<b>Orchestrator</b><br/>[Container: Python / grpcio (asyncio)]<br/>Schedules jobs on workers; owns job state and the migrant pool."]
     end
 
-    1-. "Signs in with a token<br/><small>[HTTPS]</small>" .->4
-    4-. "Submits jobs, polls progress<br/><small>[gRPC/TLS]</small>" .->5
-    4-. "Downloads results<br/><small>[HTTPS, presigned]</small>" .->28
+    1-. "Signs in with a token<br/>[HTTPS]" .->4
+    4-. "Submits jobs, polls progress<br/>[gRPC/TLS]" .->5
+    4-. "Downloads results<br/>[HTTPS, presigned]" .->28
     5-.->29
-    5-. "Manages artifacts<br/><small>[S3 API]</small>" .->28
-    16-. "Gets tasks, reports progress, sends logs<br/><small>[gRPC/TLS]</small>" .->5
-    16-. "Reads graphs, writes results<br/><small>[HTTPS, presigned]</small>" .->28
+    5-. "Manages artifacts<br/>[S3 API]" .->28
+    16-. "Gets tasks, reports progress, sends logs<br/>[gRPC/TLS]" .->5
+    16-. "Reads graphs, writes results<br/>[HTTPS, presigned]" .->28
     26-.->30
-    27-. "Uploads graphs<br/><small>[S3 API]</small>" .->28
-    27-. "Registers graph versions<br/><small>[gRPC/TLS]</small>" .->5
-    31-. "Scrapes metrics, discovers workers<br/><small>[HTTP]</small>" .->5
+    27-. "Uploads graphs<br/>[S3 API]" .->28
+    27-. "Registers graph versions<br/>[gRPC/TLS]" .->5
+    31-. "Scrapes metrics, discovers workers<br/>[HTTP]" .->5
     31-.->29
     31-.->28
     31-.->16
@@ -159,6 +158,8 @@ You need Docker 26 or newer, [uv](https://docs.astral.sh/uv/), and for the
 worker an NVIDIA GPU with CUDA 12.8 or a later 12.x, or else any machine with
 a C++20 compiler for the [CPU worker](worker/README.md#on-the-cpu).
 [docs/setup.md](docs/setup.md) goes from a clean machine to a solved job.
+Each release also has the control plane's images and the worker prebuilt for
+Linux and Windows ([deploy/README.md](deploy/README.md)).
 
 ```sh
 uv run --no-project deploy/demo.py

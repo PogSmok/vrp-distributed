@@ -1,0 +1,278 @@
+name: Release
+
+# A tag such as v1.0.0 publishes a release (ADR 0040): the worker for Linux
+# and Windows, with and without CUDA, a deploy bundle, and the control plane's
+# images on GHCR. Nothing is published until everything has built. A tag with
+# a hyphen, such as v1.0.0-rc.1, makes a pre-release.
+on:
+  push:
+    tags: ['v*']
+
+permissions:
+  contents: read
+
+jobs:
+  worker-linux:
+    name: Worker (Linux)
+    runs-on: ubuntu-24.04
+    env:
+      VCPKG_ROOT: ${{ github.workspace }}/.vcpkg
+      VCPKG_DEFAULT_BINARY_CACHE: ${{ github.workspace }}/.vcpkg-archives
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Install CUDA toolkit
+        uses: ./.github/actions/install-cuda
+
+      - name: Set up build
+        uses: ./.github/actions/setup-build
+        with:
+          cache-variant: cuda-12.9
+
+      # The same key as CI's worker job, so that a release reuses its packages.
+      - name: Read compiler and CMake versions
+        id: vcpkg-tools
+        run: |
+          echo "hash=$( (g++ --version; cmake --version) | sha256sum | cut -c1-16)" >> "$GITHUB_OUTPUT"
+
+      - name: Restore vcpkg packages
+        uses: actions/cache/restore@v6
+        with:
+          path: .vcpkg-archives
+          key: vcpkg-ubuntu-24.04-${{ hashFiles('vcpkg.json') }}-${{ steps.vcpkg-tools.outputs.hash }}
+
+      - name: Set up vcpkg at the pinned baseline
+        run: |
+          mkdir -p "$VCPKG_DEFAULT_BINARY_CACHE"
+          git clone https://github.com/microsoft/vcpkg "$VCPKG_ROOT"
+          git -C "$VCPKG_ROOT" checkout "$(jq -r '."builtin-baseline"' vcpkg.json)"
+          "$VCPKG_ROOT/bootstrap-vcpkg.sh" -disableMetrics
+
+      # libstdc++ linked in, so that only glibc 2.38 or newer is needed.
+      - name: Build and test
+        run: |
+          for preset in worker worker-cpu; do
+            cmake --preset "$preset" -DCMAKE_EXE_LINKER_FLAGS="-static-libstdc++ -static-libgcc"
+            cmake --build --preset "$preset"
+            ctest --preset "$preset" --label-exclude gpu
+          done
+
+      - name: Package
+        run: |
+          version=${GITHUB_REF_NAME#v}
+          for kind in cuda cpu; do
+            if [ "$kind" = cuda ]; then
+              preset=worker extra=cuda
+              device="Runs on one NVIDIA GPU, with a driver for CUDA 12.9 or newer. Needs glibc 2.38 or newer, as on Ubuntu 24.04."
+            else
+              preset=worker-cpu extra=
+              device="Runs on every CPU thread; no GPU needed (ADR 0037). Needs glibc 2.38 or newer, as on Ubuntu 24.04."
+            fi
+            dir="vrp-worker-$version-linux-x64-$kind"
+            mkdir "$dir"
+            cp "build/$preset/worker/vrp-worker" deploy/worker/vrp-worker.service LICENSE "$dir/"
+            strip "$dir/vrp-worker"
+            sh deploy/release/notices.sh "build/$preset/vcpkg_installed/x64-linux-release" \
+              "_deps/$( [ "$kind" = cuda ] && echo cuda || echo worker-cpu )/nlohmann_json-src" \
+              $extra > "$dir/THIRD_PARTY_NOTICES.txt"
+            sed -e "s|@VERSION@|$version|" -e "s|@PLATFORM@|Linux x64, $kind|" \
+              -e "s|@DEVICE@|$device|" -e "s|@TAG@|$GITHUB_REF_NAME|" \
+              -e "s|@REPOSITORY@|$GITHUB_SERVER_URL/$GITHUB_REPOSITORY|" \
+              deploy/release/worker-README.txt > "$dir/README.txt"
+            tar -czf "$dir.tar.gz" "$dir"
+          done
+
+      - uses: actions/upload-artifact@v7
+        with:
+          name: release-worker-linux
+          path: vrp-worker-*.tar.gz
+          retention-days: 1
+
+  worker-windows:
+    name: Worker (Windows)
+    runs-on: windows-2022
+    env:
+      VCPKG_ROOT: ${{ github.workspace }}\.vcpkg
+      VCPKG_DEFAULT_BINARY_CACHE: ${{ github.workspace }}\.vcpkg-archives
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Install CUDA toolkit
+        uses: ./.github/actions/install-cuda
+
+      - name: Set up build
+        uses: ./.github/actions/setup-build
+        with:
+          cache-variant: cuda-12.9
+
+      - name: Read compiler and CMake versions
+        id: vcpkg-tools
+        shell: pwsh
+        run: |
+          $vswhere = "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\vswhere.exe"
+          $versions = "$(& $vswhere -latest -property installationVersion) $(cmake --version)"
+          $bytes = [Text.Encoding]::UTF8.GetBytes($versions)
+          $hash = [Convert]::ToHexString([Security.Cryptography.SHA256]::HashData($bytes))
+          "hash=$($hash.Substring(0, 16).ToLower())" >> $env:GITHUB_OUTPUT
+
+      # gRPC takes over an hour to build with MSVC, so its packages are cached.
+      - name: Restore vcpkg packages
+        id: vcpkg-cache
+        uses: actions/cache/restore@v6
+        with:
+          path: .vcpkg-archives
+          key: vcpkg-windows-2022-${{ hashFiles('vcpkg.json') }}-${{ steps.vcpkg-tools.outputs.hash }}
+
+      - name: Set up vcpkg at the pinned baseline
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force $env:VCPKG_DEFAULT_BINARY_CACHE | Out-Null
+          git clone https://github.com/microsoft/vcpkg $env:VCPKG_ROOT
+          git -C $env:VCPKG_ROOT checkout (Get-Content vcpkg.json | ConvertFrom-Json).'builtin-baseline'
+          & "$env:VCPKG_ROOT\bootstrap-vcpkg.bat" -disableMetrics
+
+      # vcvars sets VCPKG_ROOT to Visual Studio's own vcpkg, so it is set again.
+      - name: Configure
+        shell: cmd
+        run: |
+          call "%ProgramFiles%\Microsoft Visual Studio\2022\Enterprise\VC\Auxiliary\Build\vcvars64.bat" || exit /b 1
+          set "VCPKG_ROOT=%GITHUB_WORKSPACE%\.vcpkg"
+          cmake --preset worker || exit /b 1
+          cmake --preset worker-cpu || exit /b 1
+          echo VC_REDIST=%VCToolsRedistDir%>> "%GITHUB_ENV%"
+
+      - name: Save vcpkg packages
+        if: steps.vcpkg-cache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v6
+        with:
+          path: .vcpkg-archives
+          key: ${{ steps.vcpkg-cache.outputs.cache-primary-key }}
+
+      - name: Build and test
+        shell: cmd
+        run: |
+          call "%ProgramFiles%\Microsoft Visual Studio\2022\Enterprise\VC\Auxiliary\Build\vcvars64.bat" || exit /b 1
+          set "VCPKG_ROOT=%GITHUB_WORKSPACE%\.vcpkg"
+          for %%P in (worker worker-cpu) do (
+            cmake --build --preset %%P || exit /b 1
+            ctest --preset %%P --label-exclude gpu || exit /b 1
+          )
+
+      # With the C++ runtime beside it, so that it needs no installer.
+      - name: Package
+        shell: bash
+        run: |
+          version=${GITHUB_REF_NAME#v}
+          crt="$(cygpath -u "$VC_REDIST")/x64/Microsoft.VC143.CRT"
+          for kind in cuda cpu; do
+            if [ "$kind" = cuda ]; then
+              preset=worker extra=cuda
+              device="Runs on one NVIDIA GPU, with a driver for CUDA 12.9 or newer."
+            else
+              preset=worker-cpu extra=
+              device="Runs on every CPU thread; no GPU needed (ADR 0037)."
+            fi
+            dir="vrp-worker-$version-windows-x64-$kind"
+            mkdir "$dir"
+            cp "build/$preset/worker/vrp-worker.exe" deploy/worker/vrp-worker-service.xml LICENSE "$dir/"
+            for dll in msvcp140 msvcp140_atomic_wait vcruntime140 vcruntime140_1; do
+              cp "$crt/$dll.dll" "$dir/"
+            done
+            sh deploy/release/notices.sh "build/$preset/vcpkg_installed/x64-windows-static-md-release" \
+              "_deps/$( [ "$kind" = cuda ] && echo cuda || echo worker-cpu )/nlohmann_json-src" \
+              $extra msvc > "$dir/THIRD_PARTY_NOTICES.txt"
+            sed -e "s|@VERSION@|$version|" -e "s|@PLATFORM@|Windows x64, $kind|" \
+              -e "s|@DEVICE@|$device|" -e "s|@TAG@|$GITHUB_REF_NAME|" \
+              -e "s|@REPOSITORY@|$GITHUB_SERVER_URL/$GITHUB_REPOSITORY|" \
+              deploy/release/worker-README.txt > "$dir/README.txt"
+            7z a -tzip "$dir.zip" "$dir" > /dev/null
+          done
+
+      - uses: actions/upload-artifact@v7
+        with:
+          name: release-worker-windows
+          path: vrp-worker-*.zip
+          retention-days: 1
+
+  bundle:
+    name: Deploy bundle
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v7
+
+      # The Compose file, pulling this release's images instead of building.
+      - name: Make the bundle
+        run: |
+          version=${GITHUB_REF_NAME#v}
+          registry="ghcr.io/${GITHUB_REPOSITORY_OWNER,,}"
+          dir="vrp-deploy-$version"
+          mkdir "$dir"
+          ORCHESTRATOR="$registry/vrp-orchestrator:$version" CLIENT="$registry/vrp-client:$version" yq '
+            explode(.)
+            | del(.["x-orchestrator-image"])
+            | del(.services[].build)
+            | (.services[] | select(.image == "vrp-orchestrator:local") | .image) = strenv(ORCHESTRATOR)
+            | (.services[] | select(.image == "vrp-client:local") | .image) = strenv(CLIENT)
+            | . head_comment = "The control plane (ADR 0031, 0040); see README.txt."
+          ' deploy/compose.yaml > "$dir/compose.yaml"
+          cp -r deploy/prometheus.yml deploy/grafana deploy/backup.sh deploy/monitor-role.sql LICENSE "$dir/"
+          sed -e "s|@VERSION@|$version|" -e "s|@TAG@|$GITHUB_REF_NAME|" \
+            -e "s|@REPOSITORY@|$GITHUB_SERVER_URL/$GITHUB_REPOSITORY|" \
+            deploy/release/bundle-README.txt > "$dir/README.txt"
+          (cd "$dir" && docker compose config --quiet)
+          tar -czf "$dir.tar.gz" "$dir"
+
+      - uses: actions/upload-artifact@v7
+        with:
+          name: release-bundle
+          path: vrp-deploy-*.tar.gz
+          retention-days: 1
+
+  images:
+    name: Images
+    needs: [worker-linux, worker-windows, bundle]
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@v7
+
+      # The source label links each package to this repository.
+      - name: Build and push the orchestrator and client images
+        env:
+          TOKEN: ${{ github.token }}
+        run: |
+          echo "$TOKEN" | docker login ghcr.io -u "$GITHUB_ACTOR" --password-stdin
+          version=${GITHUB_REF_NAME#v}
+          for target in orchestrator client; do
+            image="ghcr.io/${GITHUB_REPOSITORY_OWNER,,}/vrp-$target:$version"
+            docker build -f deploy/Dockerfile --target "$target" -t "$image" \
+              --label "org.opencontainers.image.source=$GITHUB_SERVER_URL/$GITHUB_REPOSITORY" \
+              --label "org.opencontainers.image.version=$version" \
+              --label "org.opencontainers.image.revision=$GITHUB_SHA" .
+            docker push "$image"
+          done
+
+  release:
+    name: Publish
+    needs: images
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v7
+        with:
+          pattern: release-*
+          merge-multiple: true
+          path: dist
+
+      - name: Publish the release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          cd dist
+          sha256sum -- * > SHA256SUMS
+          flags=(--verify-tag --generate-notes)
+          [[ $GITHUB_REF_NAME == *-* ]] && flags+=(--prerelease)
+          gh release create "$GITHUB_REF_NAME" --repo "$GITHUB_REPOSITORY" "${flags[@]}" -- *
