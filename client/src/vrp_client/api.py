@@ -36,14 +36,14 @@ def _serialize(message: Message) -> bytes:
 
 
 class Orchestrator:
-    """Calls the orchestrator with this client's token."""
+    """Calls the orchestrator with one user's token."""
 
     def __init__(self, target: str, token: str, ca: Path | None) -> None:
         """Connects when first used.
 
         Args:
             target: The orchestrator's `host:port`.
-            token: This client's token (ADR 0009).
+            token: The user's token (ADR 0009).
             ca: The lab CA's certificate, or None for local development
                 without TLS.
         """
@@ -59,29 +59,25 @@ class Orchestrator:
             self._ssl = ssl.create_default_context(cafile=ca)
 
     @classmethod
-    def from_environment(cls) -> "Orchestrator":
+    def from_environment(cls, token: str) -> "Orchestrator":
         """Reads the connection from the environment.
 
-        `VRP_ORCHESTRATOR`, `VRP_TOKEN` or `VRP_TOKEN_FILE`, and
-        `VRP_CA_CERTIFICATE`, or `VRP_INSECURE=1` for local development.
+        `VRP_ORCHESTRATOR`, and `VRP_CA_CERTIFICATE` or `VRP_INSECURE=1` for
+        local development.
+
+        Args:
+            token: The token the user signed in with (ADR 0038).
 
         Returns:
             The client.
 
         Raises:
-            ValueError: If the token or TLS is not configured.
+            ValueError: If TLS is not configured.
             OSError: If a file cannot be read.
         """
-        token = os.environ.get("VRP_TOKEN", "")
-        if token_file := os.environ.get("VRP_TOKEN_FILE"):
-            token = Path(token_file).read_text(encoding="utf-8").strip()
         ca = os.environ.get("VRP_CA_CERTIFICATE")
-        insecure = os.environ.get("VRP_INSECURE") == "1"
-        if not token or bool(ca) == insecure:
-            msg = (
-                "set VRP_TOKEN or VRP_TOKEN_FILE, and VRP_CA_CERTIFICATE or "
-                "VRP_INSECURE=1"
-            )
+        if bool(ca) == (os.environ.get("VRP_INSECURE") == "1"):
+            msg = "set VRP_CA_CERTIFICATE or VRP_INSECURE=1"
             raise ValueError(msg)
         return cls(
             os.environ.get("VRP_ORCHESTRATOR", "localhost:50051"),

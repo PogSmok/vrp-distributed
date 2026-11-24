@@ -1,6 +1,7 @@
 # vrp-worker
 
-Runs the orchestrator's tasks on one GPU (ADR 0024): PREPARE, DISTANCE, SOLVE
+Runs the orchestrator's tasks on one GPU, or on the CPU when built without
+CUDA (ADR 0024, 0037; see [On the CPU](#on-the-cpu)): PREPARE, DISTANCE, SOLVE
 and FINALIZE, on top of `vrp-core`. `docs/formats/protocol.md` describes the
 protocol it speaks.
 
@@ -13,11 +14,11 @@ protocol it speaks.
 | `task_runner`    | The compute thread: runs one task at a time, in short steps                | 0018, 0024, 0025 |
 | `queues`         | The two queues, the only thing the two threads share                       | 0024             |
 | `plan_router`    | Routes each new best plan on the roads for the live map, at low priority   | 0030             |
-| `threaded_for`   | The CPU thread pool of FINALIZE, which hands exceptions back to its caller | 0024, 0025       |
+| `threaded_for`   | CPU threads for FINALIZE and the CPU worker, handing exceptions back       | 0024, 0025, 0037 |
 | `transfer`       | Presigned GETs and PUTs through libcurl, with retries and fresh URLs       | 0009, 0014       |
 | `graph_cache`    | Graph files on disk, checked against the assignment's SHA-256              | 0007, 0015       |
 | `telemetry`      | JSON-line logs, and `/metrics` for Prometheus                              | 0010             |
-| `gpu_monitor`    | GPU use, memory, temperature and power from NVML, read at each scrape      | 0010             |
+| `gpu_monitor`    | GPU use, memory, temperature and power from NVML; none on the CPU          | 0010             |
 | `config`         | The configuration file                                                     | 0019             |
 
 ## Running it
@@ -54,8 +55,8 @@ and stops the worker.
 ## How it works
 
 - **Two threads.** The session thread owns the stream, and the compute thread
-  owns the GPU work and the resident graph. Each only reads what the other
-  puts in a queue, so a long GPU step never delays a heartbeat.
+  owns the GPU or CPU work and the resident graph. Each only reads what the
+  other puts in a queue, so a long step never delays a heartbeat.
 - **Reports** carry an increasing `sequence`, and the latest of each attempt
   is kept until it is confirmed, then sent again after a reconnect. A newer
   solve report takes over the points and islands of the unconfirmed one it
@@ -94,7 +95,7 @@ Known limits, to change when they matter:
 
 ## Build and test
 
-The worker needs CUDA (see `core/README.md`) and
+The worker needs CUDA (see `core/README.md`), except on the CPU, and
 [vcpkg](https://vcpkg.io), which builds gRPC, Protobuf, libcurl, OpenSSL and
 prometheus-cpp at the baseline pinned in `vcpkg.json`, in release mode only.
 The first configure takes up to an hour.
@@ -121,3 +122,21 @@ ctest --preset worker
 
 If git reports "dubious ownership" of the vcpkg clone, because another user
 created it, run `git config --global --add safe.directory C:/vcpkg`.
+
+### On the CPU
+
+For a machine with no NVIDIA GPU, the `worker-cpu` preset builds the worker
+without CUDA. It needs only vcpkg and a C++20 compiler; on Windows, the same
+prompt and variables as above.
+
+```sh
+cmake --preset worker-cpu
+cmake --build --preset worker-cpu
+ctest --preset worker-cpu
+```
+
+It runs the same tasks with `vrp-core`'s CPU code on every thread, and finds
+the same solutions as a GPU would with the same seed, more slowly (see
+`bench/README.md`). It registers as GPU `CPU (N threads)`, with the machine's
+memory as GPU memory, and has no GPU metrics. The orchestrator does not tell
+the two kinds apart, so a job may run on both at once (ADR 0037).

@@ -82,5 +82,18 @@ if(VRP_BUILD_TESTS)
                 LABELS gpu
                 PASS_REGULAR_EXPRESSION "best: 1 routes.*result written to"
         )
+
+        # The same on the CPU, which needs no GPU, so CI runs it too.
+        add_test(NAME VrpBench.SolvesTheGoldenProblemOnTheCpu
+            COMMAND vrp-bench solve
+                --graph ${PROJECT_SOURCE_DIR}/docs/formats/golden-v1
+                --problem ${CMAKE_CURRENT_SOURCE_DIR}/tests/golden_problem.json
+                --device cpu
+                --steps 20
+        )
+        set_tests_properties(VrpBench.SolvesTheGoldenProblemOnTheCpu
+            PROPERTIES
+                PASS_REGULAR_EXPRESSION "20 steps on the CPU.*best: 1 routes.*matching the cost"
+        )
     endif()
 endif()

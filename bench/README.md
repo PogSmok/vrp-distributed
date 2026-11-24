@@ -7,9 +7,12 @@ the host code, such as reading the graph and snapping, only in Release.
 
 ```sh
 vrp-bench distances --graph <directory> --problem <problem.json> [--max-snap-m <metres>] [--check]
-vrp-bench solve --cvrplib <instance.vrp> [--vehicles <count>] [--seconds <s>] [--seed <seed>]
-vrp-bench solve --graph <directory> --problem <problem.json> [--max-snap-m <metres>] [--seconds <s>] [--seed <seed>] [--result <result.json>]
+vrp-bench solve --cvrplib <instance.vrp> [--vehicles <count>] [--seconds <s> | --steps <count>] [--seed <seed>]
+vrp-bench solve --graph <directory> --problem <problem.json> [--max-snap-m <metres>] [--seconds <s> | --steps <count>] [--seed <seed>] [--result <result.json>]
 ```
+
+Each takes `--device gpu` (the default) or `--device cpu`, the baseline the
+GPU's speed is measured against.
 
 `--graph` is a graph version's directory, as the preprocessor writes it:
 its `manifest.json` names `graph.bin` and, for a simplified graph,
@@ -39,6 +42,24 @@ vrp-preprocessor problem --graph grid --customers 5000 --output problem.json
 vrp-bench distances --graph grid --problem problem.json
 vrp-bench solve --graph grid --problem problem.json --result result.json
 ```
+
+## GPU against CPU
+
+`--device cpu` runs, on every CPU thread, what the GPU would: the distances
+with Dijkstra from each stop (vrp-core's reference), and the solver's local
+search with `reference::LocalSearch`, which shares the GPU's move code. With
+the same `--seed`, both search alike step by step and end at the same best
+cost, so a run with `--steps` times the same work on each:
+
+```sh
+vrp-bench solve --graph mazowieckie --problem problem.json --steps 300 --device gpu
+vrp-bench solve --graph mazowieckie --problem problem.json --steps 300 --device cpu
+```
+
+Each prints its distance time, its steps per second and its best cost. A
+step's CPU work, such as Split and applying moves, is the same on both, so
+the solver's speedup is that of the local search diluted by it. Time a
+`cuda-release` build: in Debug, the CPU path is not optimised.
 
 The problem file format is `docs/formats/problem.md`. Parsing it is the
 `vrp_bench_files` library, which builds without CUDA so that its tests run

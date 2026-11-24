@@ -20,13 +20,21 @@ benchmark CLI build on it.
 | `result_file.hpp`     | Writes the result artifact (`docs/formats/result.md`)                                   | 0016, 0028 |
 | `geo.hpp`             | Great-circle distance and position checks                                               | 0006       |
 | `snapping.hpp`        | Snaps stops to their nearest nodes through a grid index; matches the reference exactly  | 0006       |
-| `reference/`          | CPU oracles: Dijkstra, distance matrix, brute-force snapping. Never used in production  | 0023       |
-| `solver/`             | Split, order crossover and the HGS population: the CPU part of the solver               | 0018       |
-| `gpu/`                | The distance phase, and the solver's GPU local search and `Island`                      | 0017, 0018 |
+| `reference/`          | CPU code: Dijkstra, distance rows, brute-force snapping, the local search               | 0023, 0037 |
+| `solver/`             | The `Island`: Split, order crossover, the HGS population, on any local search           | 0018       |
+| `gpu/`                | The distance phase, the GPU local search, and `CreateIsland` with it                    | 0017, 0018 |
 
 The GPU code is a separate target, `vrp_core_gpu`, built only with
 `VRP_ENABLE_CUDA`, so `vrp_core` builds and passes its tests without CUDA.
 The GPU tests are labelled `gpu` and checked against `reference/`.
+
+The local search's moves (`src/solver/local_search_moves.hpp`) compile for
+both the GPU and the CPU. `reference::LocalSearch` runs them on CPU threads
+and returns exactly the GPU's solutions, so an `Island` made with
+`CreateOnCpu` searches as one from `gpu::CreateIsland` does: the baseline
+that vrp-bench's `--device cpu` times (`bench/README.md`), and the CPU
+worker's search (ADR 0037). For that, each move's gain is rounded alike on
+both, without the GPU's fused multiply-add.
 
 ## Solver
 
@@ -101,5 +109,4 @@ ctest --preset cuda
   `solver/split.cpp`.
 - T. Vidal (2022). Hybrid genetic search for the CVRP: open-source
   implementation and SWAP\* neighborhood. *Computers & Operations Research*
-  140. HGS-CVRP, which `solver/` and `gpu/island.cpp` follow and whose
-  defaults they use.
+  140. HGS-CVRP, which `solver/` follows and whose defaults it uses.

@@ -5,6 +5,7 @@
 #include <charconv>
 #include <chrono>
 #include <cmath>
+#include <condition_variable>
 #include <cstddef>
 #include <cstdint>
 #include <cstdio>
@@ -16,9 +17,11 @@
 #include <iostream>
 #include <iterator>
 #include <memory>
+#include <mutex>
 #include <numeric>
 #include <optional>
 #include <span>
+#include <stop_token>
 #include <string>
 #include <string_view>
 #include <system_error>
@@ -44,6 +47,7 @@
 #include "vrp/core/result_file.hpp"
 #include "vrp/core/snapping.hpp"
 #include "vrp/core/solution.hpp"
+#include "vrp/core/solver/island.hpp"
 #include "vrp/core/solver_parameter.hpp"
 #include "vrp/core/status.hpp"
 #include "vrp/core/status_macros.hpp"
@@ -60,10 +64,14 @@ constexpr std::string_view kUsage =
     "usage: vrp-bench distances --graph <directory> --problem <problem.json>\n"
     "                           [--max-snap-m <metres>] [--check]\n"
     "       vrp-bench solve --cvrplib <instance.vrp> [--vehicles <count>]\n"
-    "                       [--seconds <seconds>] [--seed <seed>]\n"
+    "                       [--seconds <seconds> | --steps <count>]\n"
+    "                       [--seed <seed>]\n"
     "       vrp-bench solve --graph <directory> --problem <problem.json>\n"
-    "                       [--max-snap-m <metres>] [--seconds <seconds>]\n"
-    "                       [--seed <seed>] [--result <result.json>]\n";
+    "                       [--max-snap-m <metres>]\n"
+    "                       [--seconds <seconds> | --steps <count>]\n"
+    "                       [--seed <seed>] [--result <result.json>]\n"
+    "each with [--device gpu|cpu]: cpu runs what the GPU would on every\n"
+    "CPU thread instead, as the baseline of its speed\n";
 
 struct Options {
   std::string command;
@@ -74,8 +82,10 @@ struct Options {
   double max_snap_m = 500.0;
   bool check = false;  // compare with the CPU reference, which is slow
   double seconds = 10.0;
+  std::uint64_t steps = 0;  // if set, replaces `seconds`
   std::uint32_t seed = 0;
-  core::gpu::IslandParameters island;  // the defaults
+  bool cpu = false;                       // `--device cpu`
+  core::solver::IslandParameters island;  // the defaults
   // CVRPLIB does not fix the fleet; by default, HGS-CVRP's.
   std::optional<std::uint32_t> vehicles;
 };
@@ -109,17 +119,76 @@ Status WriteFile(const std::string& path, std::string_view text) {
   return {};
 }
 
+// Every hardware thread, started once. The CPU local search calls it every
+// round, where starting threads each time would slow the baseline down.
+class ThreadPool {
+ public:
+  ThreadPool() {
+    const std::size_t count = std::max(1U, std::thread::hardware_concurrency());
+    for (std::size_t index = 0; index < count; ++index) {
+      threads_.emplace_back(
+          [this, index](const std::stop_token& stop) { Work(index, stop); });
+    }
+  }
+
+  // Calls body(begin, end) on each thread's share of [0, count), and waits.
+  void For(std::size_t count,
+           const std::function<void(std::size_t, std::size_t)>& body) {
+    std::unique_lock lock(mutex_);
+    body_ = &body;
+    count_ = count;
+    pending_ = threads_.size();
+    ++generation_;
+    wake_.notify_all();
+    done_.wait(lock, [this] { return pending_ == 0; });
+  }
+
+ private:
+  void Work(std::size_t index, const std::stop_token& stop) {
+    std::uint64_t seen = 0;
+    while (true) {
+      std::unique_lock lock(mutex_);
+      if (!wake_.wait(lock, stop, [&] { return generation_ != seen; })) {
+        return;
+      }
+      seen = generation_;
+      const auto* const body = body_;
+      const std::size_t chunk =
+          (count_ + threads_.size() - 1) / threads_.size();
+      const std::size_t begin = std::min(count_, index * chunk);
+      const std::size_t end = std::min(count_, begin + chunk);
+      lock.unlock();
+      if (begin < end) {
+        (*body)(begin, end);
+      }
+      lock.lock();
+      if (--pending_ == 0) {
+        done_.notify_one();
+      }
+    }
+  }
+
+  std::mutex mutex_;
+  std::condition_variable_any wake_;
+  std::condition_variable_any done_;
+  const std::function<void(std::size_t, std::size_t)>* body_ = nullptr;
+  std::size_t count_ = 0;
+  std::size_t pending_ = 0;
+  std::uint64_t generation_ = 0;
+  std::vector<std::jthread> threads_;  // last: they use everything above
+};
+
 // A ParallelFor over every hardware thread, like the worker's (ADR 0025).
 void ThreadedFor(
     std::size_t count,
     const std::function<void(std::size_t begin, std::size_t end)>& body) {
-  const std::size_t thread_count =
-      std::max(1U, std::thread::hardware_concurrency());
-  const std::size_t chunk = (count + thread_count - 1) / thread_count;
-  std::vector<std::jthread> threads;  // joined on return
-  for (std::size_t begin = 0; begin < count; begin += chunk) {
-    threads.emplace_back(body, begin, std::min(count, begin + chunk));
-  }
+  static ThreadPool pool;
+  pool.For(count, body);
+}
+
+// What a run computes on, for its messages.
+std::string_view Device(const Options& options) {
+  return options.cpu ? "CPU" : "GPU";
 }
 
 // True if all of `text` is a number, stored in `value`.
@@ -162,6 +231,11 @@ std::optional<Options> ParseArguments(std::span<char* const> arguments) {
       valid = ParseNumber(value, options.max_snap_m);
     } else if (argument == "--seconds") {
       valid = ParseNumber(value, options.seconds);
+    } else if (argument == "--steps") {
+      valid = ParseNumber(value, options.steps) && options.steps > 0;
+    } else if (argument == "--device") {
+      valid = value == "gpu" || value == "cpu";
+      options.cpu = value == "cpu";
     } else if (argument == "--seed") {
       valid = ParseNumber(value, options.seed);
     } else if (argument == "--vehicles") {
@@ -232,31 +306,43 @@ StatusOr<RoadSetup> ComputeRoadMatrix(const Options& options) {
   Print(
       std::format("snapped {} stops in {}", stops.size(), SecondsSince(start)));
 
-  // Loading is measured apart from the distances (quality-attributes.md).
-  start = Clock::now();
-  VRP_ASSIGN_OR_RETURN(
-      const core::gpu::DeviceGraph device,
-      core::gpu::DeviceGraph::Create(graph, problem.edge_cost));
-  Print(std::format("graph copied to the GPU in {}", SecondsSince(start)));
+  std::vector<core::Cost> rows;
+  if (options.cpu) {
+    start = Clock::now();
+    VRP_ASSIGN_OR_RETURN(
+        rows, core::reference::ComputeDistanceRows(
+                  graph, problem.edge_cost, stops, 0, stops.size(), ThreadedFor,
+                  [] { return false; }));
+    Print(std::format("distances: {0} x {0} matrix on {1} CPU threads in {2}",
+                      stops.size(), std::thread::hardware_concurrency(),
+                      SecondsSince(start)));
+  } else {
+    // Loading is measured apart from the distances (quality-attributes.md).
+    start = Clock::now();
+    VRP_ASSIGN_OR_RETURN(
+        const core::gpu::DeviceGraph device,
+        core::gpu::DeviceGraph::Create(graph, problem.edge_cost));
+    Print(std::format("graph copied to the GPU in {}", SecondsSince(start)));
 
-  // The computation checks for cancellation between steps, so the longest
-  // gap between checks bounds how late a cancel takes effect (ADR 0024).
-  start = Clock::now();
-  Clock::time_point last_check = start;
-  Seconds longest_gap{0};
-  const auto time_checks = [&] {
-    const Clock::time_point now = Clock::now();
-    longest_gap = std::max(longest_gap, Seconds(now - last_check));
-    last_check = now;
-    return false;
-  };
-  VRP_ASSIGN_OR_RETURN(std::vector<core::Cost> rows,
-                       core::gpu::ComputeDistanceRows(
-                           device, stops, 0, stops.size(), time_checks));
-  Print(std::format(
-      "distances: {0} x {0} matrix on the GPU in {1}; at most {2:.3f} s "
-      "between cancellation checks",
-      stops.size(), SecondsSince(start), longest_gap.count()));
+    // The computation checks for cancellation between steps, so the longest
+    // gap between checks bounds how late a cancel takes effect (ADR 0024).
+    start = Clock::now();
+    Clock::time_point last_check = start;
+    Seconds longest_gap{0};
+    const auto time_checks = [&] {
+      const Clock::time_point now = Clock::now();
+      longest_gap = std::max(longest_gap, Seconds(now - last_check));
+      last_check = now;
+      return false;
+    };
+    VRP_ASSIGN_OR_RETURN(
+        rows, core::gpu::ComputeDistanceRows(device, stops, 0, stops.size(),
+                                             time_checks));
+    Print(std::format(
+        "distances: {0} x {0} matrix on the GPU in {1}; at most {2:.3f} s "
+        "between cancellation checks",
+        stops.size(), SecondsSince(start), longest_gap.count()));
+  }
 
   VRP_ASSIGN_OR_RETURN(
       core::DistanceMatrix matrix,
@@ -292,20 +378,33 @@ struct SolveOutcome {
   std::vector<core::ConvergencePoint> convergence;
 };
 
-// Runs one island for `options.seconds`, printing each improvement, then
-// checks the best solution against the matrix.
+// Runs one island for `options.seconds` or `options.steps`, printing each
+// improvement, then checks the best solution against the matrix. On the CPU
+// and the GPU, the same seed gives the same steps (reference::LocalSearch),
+// so their times compare directly.
 StatusOr<SolveOutcome> Solve(const core::DistanceMatrix& matrix,
                              const core::Problem& problem,
                              const Options& options) {
-  VRP_ASSIGN_OR_RETURN(const core::gpu::DeviceMatrix device,
-                       core::gpu::DeviceMatrix::Create(matrix));
-  VRP_ASSIGN_OR_RETURN(
-      core::gpu::Island island,
-      core::gpu::Island::Create(device, problem, options.island, options.seed));
+  std::optional<core::gpu::DeviceMatrix> device;
+  const auto create = [&]() -> StatusOr<core::solver::Island> {
+    if (options.cpu) {
+      return core::solver::Island::CreateOnCpu(matrix, problem, options.island,
+                                               options.seed, ThreadedFor);
+    }
+    VRP_ASSIGN_OR_RETURN(core::gpu::DeviceMatrix created,
+                         core::gpu::DeviceMatrix::Create(matrix));
+    return core::gpu::CreateIsland(device.emplace(std::move(created)), problem,
+                                   options.island, options.seed);
+  };
+  VRP_ASSIGN_OR_RETURN(core::solver::Island island, create());
   const auto start = Clock::now();
   std::vector<core::ConvergencePoint> convergence;
-  while (Seconds(Clock::now() - start).count() < options.seconds) {
+  std::uint64_t steps = 0;
+  while (options.steps > 0
+             ? steps < options.steps
+             : Seconds(Clock::now() - start).count() < options.seconds) {
     VRP_RETURN_IF_ERROR(island.Step());
+    ++steps;
     if (island.Best().has_value() &&
         (convergence.empty() ||
          island.Best()->evaluation.distance < convergence.back().cost)) {
@@ -315,6 +414,10 @@ StatusOr<SolveOutcome> Solve(const core::DistanceMatrix& matrix,
                         convergence.back().cost));
     }
   }
+  const Seconds elapsed = Clock::now() - start;
+  Print(std::format("{} steps on the {} in {:.2f} s, {:.1f} ms per step", steps,
+                    Device(options), elapsed.count(),
+                    1000 * elapsed.count() / static_cast<double>(steps)));
   if (!island.Best().has_value()) {
     return NotFoundError("no feasible solution found");
   }
@@ -349,9 +452,12 @@ Status Finalize(const RoadSetup& setup, const SolveOutcome& outcome,
   }
 
   const std::string worker = "vrp-bench";
-  VRP_ASSIGN_OR_RETURN(std::string gpu, core::gpu::DeviceName());
+  std::string gpu = "CPU";
+  if (!options.cpu) {
+    VRP_ASSIGN_OR_RETURN(gpu, core::gpu::DeviceName());
+  }
   std::vector<core::SolverParameter> parameters =
-      core::gpu::NamedParameters(options.island);
+      core::solver::NamedParameters(options.island);
   parameters.push_back({.name = "seconds", .value = options.seconds});
   parameters.push_back(
       {.name = "seed", .value = static_cast<double>(options.seed)});

@@ -7,7 +7,7 @@ Start with the [root README](../README.md), then [setup](setup.md) to run it.
 | Document                                           | What it answers                                                      |
 |----------------------------------------------------|----------------------------------------------------------------------|
 | [setup.md](setup.md)                               | How to go from a clean machine to a solved job                       |
-| [how-the-solver-works.md](how-the-solver-works.md) | How the search finds routes, and what more GPUs change               |
+| [how-the-solver-works.md](how-the-solver-works.md) | How the search finds routes, and what more workers change            |
 | [failure-modes.md](failure-modes.md)               | What happens when a worker, the GPU, the database or the store fails |
 | [quality-attributes.md](quality-attributes.md)     | The targets the design is held to, and what has been measured        |
 
@@ -38,7 +38,7 @@ format specs are what both sides are tested against.
 
 | README                                              | Component                                                       |
 |-----------------------------------------------------|-----------------------------------------------------------------|
-| [core/README.md](../core/README.md)                 | vrp-core: graph reader, snapping, GPU distances, the solver     |
+| [core/README.md](../core/README.md)                 | vrp-core: graph reader, snapping, distances, the solver         |
 | [worker/README.md](../worker/README.md)             | vrp-worker: session and compute threads, transfers, graph cache |
 | [orchestrator/README.md](../orchestrator/README.md) | vrp-orchestrator: scheduler, services, storage, telemetry       |
 | [client/README.md](../client/README.md)             | vrp-client: the Streamlit app and its live map                  |

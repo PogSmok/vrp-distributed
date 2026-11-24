@@ -20,19 +20,19 @@ workspace "vrp-distributed" "Distributed GPU solver for the Vehicle Routing Prob
                 artifacts   = component "Artifact Manager" "Signs presigned URLs, checks uploads, verifies graphs, deletes expired objects." "S3 client"
                 repository  = component "State Repository" "All SQL; commits transitions in order, one transaction each; applies schema migrations at start-up." "psycopg 3, commits outside the loop"
             }
-            worker       = container "Worker" "Computes distances and runs the solver on one GPU." "C++ / CUDA" {
+            worker       = container "Worker" "Computes distances and runs the solver on one GPU, or on the CPU if built without CUDA." "C++ / CUDA" {
                 session       = component "Session Client" "Registration, stream, heartbeats, reconnects, fresh URLs; resends unconfirmed reports." "gRPC client, session thread"
-                runner        = component "Task Runner" "Runs one task at a time in short GPU steps; handles cancel." "Compute thread"
-                graphCache    = component "Graph Cache" "Verified graphs on disk; one graph resident on the GPU."
+                runner        = component "Task Runner" "Runs one task at a time in short steps; handles cancel." "Compute thread"
+                graphCache    = component "Graph Cache" "Verified graphs on disk; one graph resident on the GPU or in memory."
                 transfer      = component "Object Transfer" "Presigned GET and PUT with retries." "libcurl"
                 snapper       = component "Snapper" "Snaps coordinates to graph nodes." "vrp-core / C++"
-                distance      = component "Distance Engine" "Many-source shortest paths." "vrp-core / CUDA"
-                solver        = component "Island Solver" "Populations, local search, migrant import and export." "vrp-core / CUDA"
+                distance      = component "Distance Engine" "Many-source shortest paths." "vrp-core / CUDA or C++"
+                solver        = component "Island Solver" "Populations, local search, migrant import and export." "vrp-core / CUDA or C++"
                 resultBuilder = component "Result Builder" "Routes legs on the CPU, checks the cost, builds polylines and the result artifact." "vrp-core / C++"
                 planRouter    = component "Plan Router" "Routes the latest best plan on the roads for the live map." "Low-priority thread"
             }
             preprocessor = container "Graph Preprocessor" "Turns OSM extracts into versioned graphs." "Python CLI / pyrosm"
-            adminTool    = container "Admin Tool" "Creates secrets, issues worker configurations, uploads and registers graphs." "Python CLI"
+            adminTool    = container "Admin Tool" "Creates secrets, issues worker configurations and client tokens, uploads and registers graphs." "Python CLI"
             objectStore  = container "Object Store" "Graphs, distance matrices and results." "SeaweedFS (S3)" {
                 tags "Database"
             }
@@ -62,7 +62,7 @@ workspace "vrp-distributed" "Distributed GPU solver for the Vehicle Routing Prob
         admin -> grafana
 
         // --- CONTAINER relations ---
-        user -> vrp.app
+        user -> vrp.app "Signs in with a token" "HTTPS"
         vrp.app -> vrp.orchestrator "Submits jobs, polls progress" "gRPC/TLS"
         vrp.app -> vrp.objectStore "Downloads results" "HTTPS, presigned"
         vrp.orchestrator -> vrp.stateDb
@@ -132,7 +132,7 @@ workspace "vrp-distributed" "Distributed GPU solver for the Vehicle Routing Prob
                     softwareSystemInstance grafana
                 }
             }
-            deploymentNode "GPU Worker PC" "One NVIDIA GPU, same LAN as the server. The worker runs as a service." "Windows or Linux" "" "1..8" {
+            deploymentNode "Worker PC" "One NVIDIA GPU, or only a CPU; same LAN as the server. The worker runs as a service." "Windows or Linux" "" "1..8" {
                 containerInstance vrp.worker
             }
             deploymentNode "Admin Workstation" "Graph imports; keeps the nightly database backups." "Windows or Linux" {

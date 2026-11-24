@@ -7,6 +7,7 @@
 #include "test_graphs.hpp"
 #include "vrp/core/distance_matrix.hpp"
 #include "vrp/core/graph.hpp"
+#include "vrp/core/leg_router.hpp"
 #include "vrp/core/status.hpp"
 #include "vrp/core/types.hpp"
 
@@ -54,6 +55,26 @@ TEST(ComputeDistanceMatrixTest, IsAsymmetricWithTheDepotFirst) {
                 .GetStatus()
                 .Code(),
             StatusCode::kFailedPrecondition);
+}
+
+TEST(ReferenceDistanceRowsTest, AreTheMatrixRowsAndCanBeStopped) {
+  const std::vector<NodeId> stops = {2, 0, 1};
+  const auto never = [] { return false; };
+  const std::vector<Cost> rows =
+      ComputeDistanceRows(Triangle(), EdgeCost::kLength, stops, 1, 2,
+                          SequentialFor, never)
+          .Value();
+  const DistanceMatrix matrix =
+      ComputeDistanceMatrix(Triangle(), EdgeCost::kLength, stops).Value();
+  EXPECT_EQ(rows, (std::vector<Cost>(matrix.Data().begin() + 3,
+                                     matrix.Data().end())));
+
+  const auto always = [] { return true; };
+  EXPECT_EQ(ComputeDistanceRows(Triangle(), EdgeCost::kLength, stops, 0, 3,
+                                SequentialFor, always)
+                .GetStatus()
+                .Code(),
+            StatusCode::kCancelled);
 }
 
 }  // namespace

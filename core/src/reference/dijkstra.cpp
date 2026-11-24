@@ -1,5 +1,6 @@
 #include "vrp/core/reference/dijkstra.hpp"
 
+#include <algorithm>
 #include <cstddef>
 #include <cstdint>
 #include <functional>
@@ -12,6 +13,7 @@
 
 #include "vrp/core/distance_matrix.hpp"
 #include "vrp/core/graph.hpp"
+#include "vrp/core/leg_router.hpp"
 #include "vrp/core/status.hpp"
 #include "vrp/core/status_macros.hpp"
 #include "vrp/core/types.hpp"
@@ -99,6 +101,50 @@ StatusOr<DistanceMatrix> ComputeDistanceMatrix(const RoadGraph& graph,
     }
   }
   return DistanceMatrix::Create(stop_count, std::move(matrix));
+}
+
+StatusOr<std::vector<Cost>> ComputeDistanceRows(
+    const RoadGraph& graph, EdgeCost cost, std::span<const NodeId> stops,
+    std::size_t first_row, std::size_t row_count,
+    const ParallelFor& parallel_for,
+    const std::function<bool()>& stop_requested) {
+  if (first_row > stops.size() || row_count > stops.size() - first_row) {
+    return InvalidArgumentError("the rows are not all in the stops");
+  }
+  for (const NodeId stop : stops) {
+    if (stop >= graph.NodeCount()) {
+      return InvalidArgumentError("stop node " + std::to_string(stop) +
+                                  " does not exist");
+    }
+  }
+
+  const std::size_t stop_count = stops.size();
+  std::vector<Cost> rows(row_count * stop_count);
+  std::vector<Status> errors(row_count);
+  parallel_for(row_count, [&](std::size_t begin, std::size_t end) {
+    for (std::size_t row = begin; row < end; ++row) {
+      if (stop_requested()) {
+        errors[row] = CancelledError("the distance rows were stopped");
+        return;
+      }
+      StatusOr<std::vector<Cost>> costs =
+          ShortestPathCosts(graph, cost, stops[first_row + row]);
+      if (!costs.IsOk()) {
+        errors[row] = costs.GetStatus();
+        continue;
+      }
+      for (std::size_t to = 0; to < stop_count; ++to) {
+        rows[(row * stop_count) + to] = costs.Value()[stops[to]];
+      }
+    }
+  });
+  for (const Status& error : errors) {
+    VRP_RETURN_IF_ERROR(error);
+  }
+  if (std::ranges::find(rows, kNoRoute) != rows.end()) {
+    return FailedPreconditionError("a pair of stops has no route");
+  }
+  return rows;
 }
 
 }  // namespace vrp::core::reference

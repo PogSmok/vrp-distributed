@@ -8,7 +8,7 @@ Python workspace defined by the root `pyproject.toml`.
 
 | Module        | What it is                                                         | ADR        |
 |---------------|--------------------------------------------------------------------|------------|
-| `app.py`      | The Solve and Build a problem pages, and the polling               | 0012       |
+| `app.py`      | The sign-in, Solve and Build a problem pages, and the polling      | 0012, 0038 |
 | `api.py`      | The orchestrator's client API, and result downloads                | 0008, 0009 |
 | `job_view.py` | One job as the map shows it, built up from polls                   | 0030       |
 | `files.py`    | Problem and result files, checked against `docs/formats/`          | 0006, 0028 |
@@ -53,17 +53,18 @@ the map always shows that credit, which MapLibre never collapses.
 
 ## Running it
 
-`deploy/README.md` starts it with the rest of the control plane. To run it on
-its own against an orchestrator:
+`deploy/README.md` starts it with the rest of the control plane, and gives
+each user a token to sign in with (ADR 0038). To run it on its own against an
+orchestrator:
 
 ```sh
 cd client
-export VRP_ORCHESTRATOR=server.lab:50051
-export VRP_TOKEN_FILE=token VRP_CA_CERTIFICATE=ca.pem
+export VRP_ORCHESTRATOR=server.lab:50051 VRP_CA_CERTIFICATE=ca.pem
 uv run streamlit run src/vrp_client/app.py
 ```
 
-`VRP_INSECURE=1` replaces the certificate for local development only. Make a
+Run like this, it serves plain HTTP, so keep it on localhost. `VRP_INSECURE=1`
+replaces the certificate for local development only. Make a
 problem file with `vrp-preprocessor problem` (`preprocessor/README.md`).
 
 Known limits, to change when they matter:
@@ -75,5 +76,6 @@ Known limits, to change when they matter:
   they are large.
 - A road plan over 3 MB is not sent, so a very large problem may show its
   routes only once the result arrives; untested at 5,000 customers.
-- No login, so the client listens on localhost only (ADR 0031).
+- The token is asked for again in each new tab and after a reload, since
+  Streamlit keeps nothing across sessions (ADR 0038).
 - The job view and the map's JavaScript have no automated tests.

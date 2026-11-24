@@ -235,11 +235,12 @@ services:
         condition: service_healthy
     environment:
       VRP_ORCHESTRATOR: orchestrator:50051
-      VRP_TOKEN_FILE: /run/vrp/token
       VRP_CA_CERTIFICATE: /run/vrp/ca.pem
-    # No login, so reachable from this machine only.
+      # HTTPS, since users sign in with their tokens (ADR 0038).
+      STREAMLIT_SERVER_SSL_CERT_FILE: /run/vrp/server.pem
+      STREAMLIT_SERVER_SSL_KEY_FILE: /run/vrp/server.key
     ports:
-      - 127.0.0.1:8501:8501
+      - ${VRP_BIND:-127.0.0.1}:8501:8501
     volumes:
       - type: volume
         source: secrets
@@ -252,7 +253,7 @@ services:
         - CMD
         - python
         - -c
-        - import urllib.request as u; u.urlopen('http://127.0.0.1:8501/_stcore/health', timeout=3)
+        - import ssl, urllib.request as u; u.urlopen('https://127.0.0.1:8501/_stcore/health', timeout=3, context=ssl.create_default_context(cafile='/run/vrp/ca.pem'))
       interval: 2s
       timeout: 5s
       retries: 30
