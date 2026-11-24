@@ -24,6 +24,7 @@ _HERE: Final = Path(__file__).parent
 _COST_NAMES: Final = {"length": "Distance", "time": "Travel time"}
 _MAX_INTEGER: Final = 2**32 - 1
 _BUILT: Final = "built_problem"
+_TOKEN: Final = "token"  # noqa: S105  # a key; its value is this tab's token
 _MAP: Final = "map"  # the component's key; its value is the plan it holds
 # A problem around Warsaw, to edit or replace.
 _EXAMPLE: Final = json.loads((_HERE / "example_problem.json").read_bytes())
@@ -31,12 +32,13 @@ _map = declare_component("vrp_map", path=str(_HERE / "map"))
 
 
 @st.cache_resource
-def _orchestrator() -> Orchestrator:
-    return Orchestrator.from_environment()
+def _orchestrator(token: str) -> Orchestrator:
+    return Orchestrator.from_environment(token)
 
 
 @st.cache_resource
-def _jobs() -> JobViews:
+def _jobs(token: str) -> JobViews:  # noqa: ARG001  # `token` is the cache key
+    """The token's jobs, so that no user sees another's (ADR 0038)."""
     return JobViews()
 
 
@@ -74,7 +76,7 @@ def _problem_source() -> vrp_pb2.Problem | None:
     return problem
 
 
-def _new_job_form(api: Orchestrator) -> vrp_pb2.Problem | None:
+def _new_job_form(api: Orchestrator, jobs: JobViews) -> vrp_pb2.Problem | None:
     """The sidebar's form; submits a job. Returns the problem to preview."""
     try:
         graphs = api.graphs()
@@ -108,12 +110,13 @@ def _new_job_form(api: Orchestrator) -> vrp_pb2.Problem | None:
             time_limit_seconds=float(limit),
             stagnation_seconds=float(stagnation),
         )
-        _submit(api, problem, str(version), parameters)
+        _submit(api, jobs, problem, str(version), parameters)
     return problem
 
 
 def _submit(
     api: Orchestrator,
+    jobs: JobViews,
     problem: vrp_pb2.Problem | None,
     version: str,
     parameters: vrp_pb2.SolveParameters,
@@ -125,7 +128,7 @@ def _submit(
     except grpc.RpcError as error:
         st.error(_reason(error))
         return
-    _jobs().add(
+    jobs.add(
         JobView(
             job_id,
             stops=stop_positions(problem),
@@ -192,17 +195,14 @@ def _draw(
 
 def _solve_page() -> None:
     _style("solve_page.css")
-    try:
-        api = _orchestrator()
-    except (OSError, ValueError) as error:
-        st.error(f"The client is not configured: {error}")
-        return
+    token: str = st.session_state[_TOKEN]
+    api, jobs = _orchestrator(token), _jobs(token)
     job_id = st.query_params.get("job")
-    view = _jobs().get(job_id) if job_id else None
+    view = jobs.get(job_id) if job_id else None
     preview: list[list[float]] = []
     with st.sidebar:
         if view is None:
-            problem = _new_job_form(api)
+            problem = _new_job_form(api, jobs)
             preview = stop_positions(problem) if problem else []
         else:
             _job_controls(api, view)
@@ -332,6 +332,29 @@ def _builder_page(solve: StreamlitPage) -> None:
         )
 
 
+def _sign_in_page() -> None:
+    """Asks for a client token (ADR 0038), and checks it with a call."""
+    st.title("Sign in")
+    with st.form("sign_in"):
+        token = st.text_input(
+            "Token",
+            type="password",
+            help="From `admin.py client <your name>`; see `deploy/README.md`.",
+        ).strip()
+        if not st.form_submit_button("Sign in", type="primary"):
+            return
+    try:
+        Orchestrator.from_environment(token).graphs()
+    except (OSError, ValueError) as error:
+        st.error(f"The client is not configured: {error}")
+        return
+    except grpc.RpcError as error:
+        st.error(_reason(error))
+        return
+    st.session_state[_TOKEN] = token
+    st.rerun()
+
+
 def main() -> None:
     """Draws the app."""
     st.set_page_config(page_title="VRP Control", page_icon="🛰️", layout="wide")
@@ -339,6 +362,10 @@ def main() -> None:
     ink = "#04121a" if st.context.theme.type == "dark" else "#ffffff"
     style = (_HERE / "style.css").read_text("utf-8")
     st.html(f"<style>:root {{ --vrp-ink: {ink}; }} {style}</style>")
+    if _TOKEN not in st.session_state:
+        sign_in = st.Page(_sign_in_page, title="Sign in", icon=":material/key:")
+        st.navigation([sign_in], position="hidden").run()
+        return
     solve = st.Page(
         _solve_page, title="Solve", icon=":material/route:", default=True
     )
@@ -349,6 +376,9 @@ def main() -> None:
         url_path="build",
     )
     st.navigation([solve, build]).run()
+    if st.sidebar.button("Sign out", width="stretch"):
+        del st.session_state[_TOKEN]
+        st.rerun()
 
 
 main()

@@ -1,6 +1,6 @@
 # 0031. The orchestrator and the client run in Docker Compose
 
-- **Status:** Accepted
+- **Status:** Accepted; the client's login added by 0038
 - **Date:** 2026-11-23
 - **Related:** 0009, 0010, 0012, 0019, 0029
 

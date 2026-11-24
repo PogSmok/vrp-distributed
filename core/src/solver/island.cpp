@@ -1,0 +1,196 @@
+#include "vrp/core/solver/island.hpp"
+
+#include <algorithm>
+#include <cstddef>
+#include <cstdint>
+#include <numeric>
+#include <span>
+#include <utility>
+#include <vector>
+
+#include "vrp/core/distance_matrix.hpp"
+#include "vrp/core/leg_router.hpp"
+#include "vrp/core/reference/local_search.hpp"
+#include "vrp/core/solution.hpp"
+#include "vrp/core/solver/crossover.hpp"
+#include "vrp/core/solver/evaluation.hpp"
+#include "vrp/core/solver/population.hpp"
+#include "vrp/core/solver/split.hpp"
+#include "vrp/core/solver_parameter.hpp"
+#include "vrp/core/status.hpp"
+#include "vrp/core/status_macros.hpp"
+#include "vrp/core/types.hpp"
+
+namespace vrp::core::solver {
+namespace {
+
+// Penalty bounds and factors of HGS-CVRP.
+constexpr double kMinPenalty = 0.1;
+constexpr double kMaxPenalty = 100'000.0;
+constexpr double kMaxInitialPenalty = 1'000.0;
+constexpr double kPenaltyIncrease = 1.2;
+constexpr double kPenaltyDecrease = 0.85;
+constexpr double kTargetTolerance = 0.05;
+constexpr double kRepairPenaltyFactor = 10.0;
+
+// HGS-CVRP's starting penalty: the largest cost over the largest demand.
+double InitialPenalty(const DistanceMatrix& matrix, const Problem& problem) {
+  const Cost largest_cost =
+      matrix.Data().empty() ? 0 : std::ranges::max(matrix.Data());
+  const std::uint32_t largest_demand =
+      std::max(1U, std::ranges::max(problem.demands));
+  return std::clamp(static_cast<double>(largest_cost) / largest_demand,
+                    kMinPenalty, kMaxInitialPenalty);
+}
+
+}  // namespace
+
+// A new field changes the size: list it below, then update the size.
+static_assert(sizeof(IslandParameters) == 80);
+
+std::vector<SolverParameter> NamedParameters(
+    const IslandParameters& parameters) {
+  const auto value = [](std::size_t count) {
+    return static_cast<double>(count);
+  };
+  const PopulationParameters& population = parameters.population;
+  return {
+      {.name = "population.min_size", .value = value(population.min_size)},
+      {.name = "population.generation_size",
+       .value = value(population.generation_size)},
+      {.name = "population.elite_count",
+       .value = value(population.elite_count)},
+      {.name = "population.close_count",
+       .value = value(population.close_count)},
+      {.name = "neighbor_count", .value = value(parameters.neighbor_count)},
+      {.name = "batch_size", .value = value(parameters.batch_size)},
+      {.name = "initial_size", .value = value(parameters.initial_size)},
+      {.name = "target_feasible", .value = parameters.target_feasible},
+      {.name = "penalty_interval", .value = value(parameters.penalty_interval)},
+      {.name = "repair_probability", .value = parameters.repair_probability},
+  };
+}
+
+StatusOr<Island> Island::Create(const DistanceMatrix& matrix,
+                                const Problem& problem,
+                                const IslandParameters& parameters,
+                                std::uint32_t seed, ImproveBatch improve) {
+  VRP_RETURN_IF_ERROR(ValidateProblem(problem));
+  if (matrix.StopCount() != problem.demands.size()) {
+    return InvalidArgumentError(
+        "the matrix and the problem have different numbers of stops");
+  }
+  if (parameters.population.min_size == 0 || parameters.batch_size == 0 ||
+      parameters.initial_size == 0 || parameters.penalty_interval == 0) {
+    return InvalidArgumentError(
+        "the population, batch, initial and penalty interval sizes must be "
+        "positive");
+  }
+  return Island(matrix, problem, parameters, seed, std::move(improve));
+}
+
+StatusOr<Island> Island::CreateOnCpu(const DistanceMatrix& matrix,
+                                     const Problem& problem,
+                                     const IslandParameters& parameters,
+                                     std::uint32_t seed,
+                                     ParallelFor parallel_for) {
+  VRP_ASSIGN_OR_RETURN(reference::LocalSearch search,
+                       reference::LocalSearch::Create(
+                           matrix, problem, parameters.neighbor_count,
+                           parameters.batch_size, std::move(parallel_for)));
+  return Create(
+      matrix, problem, parameters, seed,
+      [search = std::move(search)](std::span<std::vector<Route>> solutions,
+                                   double penalty) mutable {
+        return search.Improve(solutions, penalty);
+      });
+}
+
+Island::Island(const DistanceMatrix& matrix, const Problem& problem,
+               const IslandParameters& parameters, std::uint32_t seed,
+               ImproveBatch improve)
+    : matrix_(&matrix),
+      problem_(problem),
+      parameters_(parameters),
+      random_(seed),
+      improve_(std::move(improve)),
+      penalty_(InitialPenalty(matrix, problem)),
+      population_(problem.demands.size() - 1, parameters.population, penalty_) {
+}
+
+Status Island::Step() {
+  const std::size_t batch = parameters_.batch_size;
+  std::vector<std::vector<Route>> children(batch);
+  for (std::size_t index = 0; index < batch; ++index) {
+    std::vector<std::uint32_t> tour;
+    if (children_ + index < parameters_.initial_size) {
+      tour.resize(problem_.demands.size() - 1);
+      std::iota(tour.begin(), tour.end(), 1U);
+      random_.Shuffle(std::span(tour));
+    } else {
+      const Individual& first = population_.Select(random_);
+      const Individual& second = population_.Select(random_);
+      tour = OrderCrossover(first.tour, second.tour, random_);
+    }
+    children[index] = Split(*matrix_, problem_, tour, penalty_);
+  }
+  VRP_ASSIGN_OR_RETURN(const std::vector<Evaluation> evaluations,
+                       improve_(children, penalty_));
+
+  // Some infeasible children get a second search with a higher penalty.
+  std::vector<std::vector<Route>> repairs;
+  for (std::size_t index = 0; index < batch; ++index) {
+    ++recent_children_;
+    if (evaluations[index].Feasible()) {
+      ++recent_feasible_;
+    } else if (random_.Chance(parameters_.repair_probability)) {
+      repairs.push_back(children[index]);
+    }
+    Keep(std::move(children[index]), evaluations[index]);
+  }
+  VRP_ASSIGN_OR_RETURN(const std::vector<Evaluation> repaired,
+                       improve_(repairs, penalty_ * kRepairPenaltyFactor));
+  for (std::size_t index = 0; index < repairs.size(); ++index) {
+    if (repaired[index].Feasible()) {
+      Keep(std::move(repairs[index]), repaired[index]);
+    }
+  }
+
+  children_ += batch;
+  if (recent_children_ >= parameters_.penalty_interval) {
+    UpdatePenalty();
+  }
+  return {};
+}
+
+Status Island::Import(const Solution& migrant) {
+  VRP_RETURN_IF_ERROR(ValidateSolution(problem_, migrant));
+  Keep(migrant.routes, Evaluate(*matrix_, problem_, migrant.routes));
+  return {};
+}
+
+void Island::Keep(std::vector<Route> routes, const Evaluation& evaluation) {
+  Individual individual = MakeIndividual(std::move(routes), evaluation);
+  if (evaluation.Feasible() &&
+      (!best_.has_value() ||
+       evaluation.distance < best_->evaluation.distance)) {
+    best_ = individual;
+  }
+  population_.Add(std::move(individual));
+}
+
+// Moves the share of feasible children towards the target.
+void Island::UpdatePenalty() {
+  const double share = static_cast<double>(recent_feasible_) /
+                       static_cast<double>(recent_children_);
+  if (share < parameters_.target_feasible - kTargetTolerance) {
+    penalty_ = std::min(penalty_ * kPenaltyIncrease, kMaxPenalty);
+  } else if (share > parameters_.target_feasible + kTargetTolerance) {
+    penalty_ = std::max(penalty_ * kPenaltyDecrease, kMinPenalty);
+  }
+  population_.SetPenalty(penalty_);
+  recent_children_ = 0;
+  recent_feasible_ = 0;
+}
+
+}  // namespace vrp::core::solver

@@ -28,10 +28,8 @@ set(CMAKE_CXX_EXTENSIONS OFF)
 
 option(VRP_BUILD_TESTS "Build the tests" ${PROJECT_IS_TOP_LEVEL})
 option(VRP_ENABLE_CUDA "Build the GPU kernels; needs CUDA 12.8 or a later 12.x" OFF)
-option(VRP_BUILD_WORKER "Build vrp-worker; needs CUDA and vcpkg" OFF)
-if(VRP_BUILD_WORKER AND NOT VRP_ENABLE_CUDA)
-    message(FATAL_ERROR "VRP_BUILD_WORKER needs VRP_ENABLE_CUDA.")
-endif()
+# Without CUDA, the worker computes on the CPU instead (ADR 0037).
+option(VRP_BUILD_WORKER "Build vrp-worker; needs vcpkg" OFF)
 
 # -------------------------
 # CUDA (ADR 0019)
@@ -131,7 +129,7 @@ endif()
 # -------------------------
 # The git version of this build, which results record (ADR 0016, 0019)
 # -------------------------
-if(VRP_ENABLE_CUDA)
+if(VRP_ENABLE_CUDA OR VRP_BUILD_WORKER)
     set(vrp_version_header ${CMAKE_BINARY_DIR}/generated/vrp/build_version.hpp)
     add_custom_target(vrp_build_version_file
         COMMAND ${CMAKE_COMMAND}

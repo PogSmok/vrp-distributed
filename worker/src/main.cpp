@@ -1,13 +1,16 @@
-// vrp-worker: runs tasks on one GPU for the orchestrator (ADR 0024). See
-// worker/README.md.
+// vrp-worker: runs tasks on one GPU for the orchestrator (ADR 0024), or on the
+// CPU in a build without CUDA (ADR 0037). See worker/README.md.
 
 #include <curl/curl.h>
 
+#include <algorithm>
 #include <csignal>
+#include <cstdint>
 #include <cstdio>
 #include <cstdlib>
 #include <exception>
 #include <filesystem>
+#include <format>
 #include <fstream>
 #include <iostream>
 #include <iterator>
@@ -20,7 +23,6 @@
 #include <thread>
 
 #include "vrp/build_version.hpp"
-#include "vrp/core/gpu/device.hpp"
 #include "vrp/core/status.hpp"
 #include "vrp/core/status_macros.hpp"
 #include "vrp/v1/vrp.pb.h"
@@ -31,6 +33,14 @@
 #include "vrp/worker/task_runner.hpp"
 #include "vrp/worker/telemetry.hpp"
 #include "vrp/worker/transfer.hpp"
+
+#ifndef VRP_WORKER_CPU
+#include "vrp/core/gpu/device.hpp"
+#elif defined(_WIN32)
+#include <windows.h>
+#else
+#include <unistd.h>
+#endif
 
 namespace vrp::worker {
 namespace {
@@ -52,6 +62,54 @@ core::StatusOr<std::string> ReadFile(const std::filesystem::path& path) {
   return std::string(std::istreambuf_iterator<char>(file), {});
 }
 
+// What the worker computes on, as it registers (protocol.md).
+struct Device {
+  std::string name;
+  std::uint64_t memory_bytes = 0;
+  std::string driver;
+};
+
+#ifdef VRP_WORKER_CPU
+// The CPU stands in for a GPU (ADR 0037): the machine's memory is what the
+// orchestrator checks a problem against.
+core::StatusOr<Device> ThisDevice(Metrics& /*metrics*/, Log& /*log*/) {
+  std::uint64_t memory_bytes = 0;
+#ifdef _WIN32
+  MEMORYSTATUSEX status = {};
+  status.dwLength = sizeof(status);
+  if (GlobalMemoryStatusEx(&status) != 0) {
+    memory_bytes = status.ullTotalPhys;
+  }
+#else
+  const auto pages = sysconf(_SC_PHYS_PAGES);
+  const auto page_size = sysconf(_SC_PAGE_SIZE);
+  if (pages > 0 && page_size > 0) {
+    memory_bytes = static_cast<std::uint64_t>(pages) *
+                   static_cast<std::uint64_t>(page_size);
+  }
+#endif
+  if (memory_bytes == 0) {
+    return core::InternalError("cannot read the machine's memory size");
+  }
+  return Device{
+      .name = std::format("CPU ({} threads)",
+                          std::max(1U, std::thread::hardware_concurrency())),
+      .memory_bytes = memory_bytes,
+      .driver = ""};
+}
+#else
+core::StatusOr<Device> ThisDevice(Metrics& metrics, Log& log) {
+  VRP_ASSIGN_OR_RETURN(const core::gpu::DeviceInfo device,
+                       core::gpu::CurrentDeviceInfo());
+  if (!metrics.WatchGpu(device.pci_bus_id)) {
+    log.Info("NVML is unavailable: no GPU metrics");
+  }
+  return Device{.name = device.name,
+                .memory_bytes = device.memory_bytes,
+                .driver = device.driver};
+}
+#endif
+
 Status Run(const std::filesystem::path& config_path) {
   VRP_ASSIGN_OR_RETURN(const std::string text, ReadFile(config_path));
   const char* const token = std::getenv("VRP_WORKER_TOKEN");
@@ -63,12 +121,8 @@ Status Run(const std::filesystem::path& config_path) {
   if (config.insecure) {
     log->Info("running without TLS: for local development only");
   }
-  VRP_ASSIGN_OR_RETURN(const core::gpu::DeviceInfo device,
-                       core::gpu::CurrentDeviceInfo());
   Metrics metrics(config.metrics_listen);
-  if (!metrics.WatchGpu(device.pci_bus_id)) {
-    log->Info("NVML is unavailable: no GPU metrics");
-  }
+  VRP_ASSIGN_OR_RETURN(const Device device, ThisDevice(metrics, *log));
 
   v1::Register identity;
   identity.set_protocol_major(v1::PROTOCOL_VERSION_MAJOR);

@@ -1,5 +1,6 @@
 # -------------------------
-# vrp-worker: runs tasks on one GPU for the orchestrator (ADR 0024)
+# vrp-worker: runs tasks on one GPU for the orchestrator (ADR 0024), or on the
+# CPU in a build without CUDA (ADR 0037)
 # -------------------------
 find_package(Threads REQUIRED)
 find_package(CURL CONFIG REQUIRED)
@@ -51,7 +52,7 @@ target_include_directories(vrp_worker
 )
 target_link_libraries(vrp_worker
     PUBLIC
-        vrp::core_gpu
+        $<IF:$<BOOL:${VRP_ENABLE_CUDA}>,vrp::core_gpu,vrp::core>
         vrp_proto
         prometheus-cpp::pull
         Threads::Threads
@@ -65,6 +66,7 @@ target_link_libraries(vrp_worker
 target_compile_definitions(vrp_worker PUBLIC
     $<$<PLATFORM_ID:Windows>:NOMINMAX>
     $<$<PLATFORM_ID:Windows>:WIN32_LEAN_AND_MEAN>
+    $<$<NOT:$<BOOL:${VRP_ENABLE_CUDA}>>:VRP_WORKER_CPU>
 )
 vrp_enable_warnings(vrp_worker)
 

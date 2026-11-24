@@ -2,18 +2,22 @@ include(GoogleTest)
 find_package(Threads REQUIRED)
 
 add_executable(vrp_core_tests
+    local_search_oracle.cpp
     test_geo.cpp
     test_graph.cpp
     test_graph_file.cpp
     test_graphs.cpp
     test_leg_router.cpp
+    test_problems.cpp
     test_result.cpp
     test_snapping.cpp
     test_solution.cpp
     test_status_macros.cpp
     reference/test_dijkstra.cpp
+    reference/test_local_search.cpp
     reference/test_snapping.cpp
     solver/test_crossover.cpp
+    solver/test_island.cpp
     solver/test_population.cpp
     solver/test_random.cpp
     solver/test_split.cpp
@@ -47,6 +51,7 @@ if(VRP_ENABLE_CUDA)
         gpu/test_distance_rows.cpp
         gpu/test_island.cpp
         gpu/test_local_search.cpp
+        local_search_oracle.cpp
         test_graphs.cpp
         test_problems.cpp
     )

@@ -10,6 +10,7 @@ add_library(vrp_core STATIC
     src/graph_file.cpp
     src/leg_router.cpp
     src/reference/dijkstra.cpp
+    src/reference/local_search.cpp
     src/reference/snapping.cpp
     src/result.cpp
     src/result_file.cpp
@@ -17,6 +18,8 @@ add_library(vrp_core STATIC
     src/solution.cpp
     src/solver/crossover.cpp
     src/solver/evaluation.cpp
+    src/solver/island.cpp
+    src/solver/local_search_moves.cpp
     src/solver/population.cpp
     src/solver/random.cpp
     src/solver/split.cpp
@@ -26,6 +29,9 @@ add_library(vrp::core ALIAS vrp_core)
 target_include_directories(vrp_core
     PUBLIC
         ${CMAKE_CURRENT_SOURCE_DIR}/include
+    # Internal headers shared with vrp_core_gpu: the local search's moves.
+    PRIVATE
+        ${CMAKE_CURRENT_SOURCE_DIR}/src
 )
 target_compile_features(vrp_core PUBLIC cxx_std_20)
 
@@ -51,6 +57,9 @@ if(VRP_ENABLE_CUDA)
             vrp::core
         PRIVATE
             CUDA::cudart_static
+    )
+    target_include_directories(vrp_core_gpu
+        PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src
     )
 
     vrp_enable_warnings(vrp_core_gpu)

@@ -18,15 +18,12 @@
 #include <vector>
 
 #include "vrp/core/distance_matrix.hpp"
-#include "vrp/core/gpu/device_graph.hpp"
-#include "vrp/core/gpu/device_matrix.hpp"
-#include "vrp/core/gpu/distance_rows.hpp"
-#include "vrp/core/gpu/island.hpp"
 #include "vrp/core/graph_file.hpp"
 #include "vrp/core/result.hpp"
 #include "vrp/core/result_file.hpp"
 #include "vrp/core/snapping.hpp"
 #include "vrp/core/solution.hpp"
+#include "vrp/core/solver/island.hpp"
 #include "vrp/core/solver_parameter.hpp"
 #include "vrp/core/status.hpp"
 #include "vrp/core/status_macros.hpp"
@@ -35,6 +32,15 @@
 #include "vrp/worker/hashing.hpp"
 #include "vrp/worker/plan_router.hpp"
 #include "vrp/worker/threaded_for.hpp"
+
+#ifdef VRP_WORKER_CPU
+#include "vrp/core/reference/dijkstra.hpp"
+#else
+#include "vrp/core/gpu/device_graph.hpp"
+#include "vrp/core/gpu/device_matrix.hpp"
+#include "vrp/core/gpu/distance_rows.hpp"
+#include "vrp/core/gpu/island.hpp"
+#endif
 
 namespace vrp::worker {
 namespace {
@@ -88,6 +94,7 @@ core::Problem ToProblem(const v1::Problem& problem) {
           .vehicle_capacity = problem.vehicle_capacity()};
 }
 
+#ifndef VRP_WORKER_CPU
 // The device copy of `resident`'s graph with the weights of `cost`.
 StatusOr<const core::gpu::DeviceGraph*> LoadDevice(
     std::optional<core::gpu::DeviceGraph>& device,
@@ -102,6 +109,7 @@ StatusOr<const core::gpu::DeviceGraph*> LoadDevice(
   device_cost = cost;
   return &device.emplace(std::move(created));
 }
+#endif
 
 std::vector<core::LatLon> StopPositions(const v1::Problem& problem) {
   std::vector<core::LatLon> positions;
@@ -135,7 +143,7 @@ void FillSolution(const std::vector<core::Route>& routes,
 std::vector<core::SolverParameter> ResultParameters(
     const v1::SolveParameters& job) {
   std::vector<core::SolverParameter> parameters =
-      core::gpu::NamedParameters(core::gpu::IslandParameters{});
+      core::solver::NamedParameters(core::solver::IslandParameters{});
   const auto add = [&](const char* name, double value) {
     parameters.push_back({.name = name, .value = value});
   };
@@ -167,7 +175,7 @@ const char* KindName(const v1::Assignment& assignment) {
 // One island of a solve task, and what it has not yet reported or exported.
 struct TaskRunner::IslandRun {
   std::uint32_t index = 0;
-  core::gpu::Island island;
+  core::solver::Island island;
   std::optional<core::RouteCost> best_cost;
   std::vector<core::ConvergencePoint> new_points;
   bool export_pending = false;
@@ -296,19 +304,30 @@ Status TaskRunner::Prepare(const v1::Assignment& assignment) {
 
 Status TaskRunner::Distance(const v1::Assignment& assignment) {
   const v1::DistanceTask& task = assignment.distance();
+  VRP_ASSIGN_OR_RETURN(const core::EdgeCost cost, ToEdgeCost(task.edge_cost()));
+  const std::vector<core::NodeId> stops(task.stop_nodes().begin(),
+                                        task.stop_nodes().end());
+#ifdef VRP_WORKER_CPU
+  VRP_ASSIGN_OR_RETURN(const Resident* const resident,
+                       LoadGraph(assignment.graph(), Polling()));
+  VRP_ASSIGN_OR_RETURN(
+      const std::vector<core::Cost> rows,
+      core::reference::ComputeDistanceRows(
+          resident->graph, cost, stops, task.first_row(), task.row_count(),
+          ThreadedFor, [this] { return Poll(); }));
+#else
+  // Not const: the GPU copy of the graph is kept with it.
   VRP_ASSIGN_OR_RETURN(Resident* const resident,
                        LoadGraph(assignment.graph(), Polling()));
-  VRP_ASSIGN_OR_RETURN(const core::EdgeCost cost, ToEdgeCost(task.edge_cost()));
   VRP_ASSIGN_OR_RETURN(const core::gpu::DeviceGraph* const device,
                        LoadDevice(resident->device, resident->device_cost,
                                   resident->graph, cost));
   VRP_RETURN_IF_ERROR(CheckStop());
-  const std::vector<core::NodeId> stops(task.stop_nodes().begin(),
-                                        task.stop_nodes().end());
   VRP_ASSIGN_OR_RETURN(const std::vector<core::Cost> rows,
                        core::gpu::ComputeDistanceRows(
                            *device, stops, task.first_row(), task.row_count(),
                            [this] { return Poll(); }));
+#endif
   return UploadResult(std::as_bytes(std::span(rows)));
 }
 
@@ -372,23 +391,38 @@ Status TaskRunner::Solve(const v1::Assignment& assignment) {
   }
   // Convergence counts from here, so that it includes the setup below.
   const Clock::time_point start = Clock::now();
+  VRP_ASSIGN_OR_RETURN(const core::DistanceMatrix matrix, DownloadMatrix(task));
+  const core::Problem problem = ToProblem(task.problem());
+  const core::solver::IslandParameters parameters;
+#ifdef VRP_WORKER_CPU
+  // The islands' local search runs a short loop each round (ADR 0037).
+  ThreadPool pool;
+  const auto create_island = [&](std::uint32_t seed) {
+    return core::solver::Island::CreateOnCpu(
+        matrix, problem, parameters, seed,
+        [&pool](std::size_t count,
+                const std::function<void(std::size_t, std::size_t)>& body) {
+          pool.For(count, body);
+        });
+  };
+#else
   // The GPU memory check counts this job's graph, and this may be another's;
   // SOLVE does not use it.
   if (resident_.has_value()) {
     resident_->device.reset();
   }
-  VRP_ASSIGN_OR_RETURN(const core::DistanceMatrix matrix, DownloadMatrix(task));
   VRP_ASSIGN_OR_RETURN(const core::gpu::DeviceMatrix device_matrix,
                        core::gpu::DeviceMatrix::Create(matrix));
-  const core::Problem problem = ToProblem(task.problem());
-  const core::gpu::IslandParameters parameters;
+  const auto create_island = [&](std::uint32_t seed) {
+    return core::gpu::CreateIsland(device_matrix, problem, parameters, seed);
+  };
+#endif
   std::vector<IslandRun> islands;
   islands.reserve(static_cast<std::size_t>(task.islands_size()));
   for (const v1::IslandStart& entry : task.islands()) {
     VRP_RETURN_IF_ERROR(CheckStop());
-    VRP_ASSIGN_OR_RETURN(core::gpu::Island island,
-                         core::gpu::Island::Create(device_matrix, problem,
-                                                   parameters, entry.seed()));
+    VRP_ASSIGN_OR_RETURN(core::solver::Island island,
+                         create_island(entry.seed()));
     islands.push_back({.index = entry.island(),
                        .island = std::move(island),
                        .best_cost = std::nullopt,
@@ -634,8 +668,10 @@ StatusOr<TaskRunner::Resident*> TaskRunner::LoadGraph(
       .graph = std::move(graph),
       .geometry_sha256 = std::nullopt,
       .geometry = core::EdgeGeometry(),
+#ifndef VRP_WORKER_CPU
       .device_cost = std::nullopt,
       .device = std::nullopt,
+#endif
   });
   log_->Info("loaded graph " + files.graph_version(), tags_);
   return &loaded;

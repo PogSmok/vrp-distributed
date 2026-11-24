@@ -14,9 +14,8 @@
 
 #include "vrp/core/distance_matrix.hpp"
 #include "vrp/core/edge_geometry.hpp"
-#include "vrp/core/gpu/device_graph.hpp"
-#include "vrp/core/gpu/island.hpp"
 #include "vrp/core/graph.hpp"
+#include "vrp/core/solver/island.hpp"
 #include "vrp/core/status.hpp"
 #include "vrp/core/types.hpp"
 #include "vrp/v1/vrp.pb.h"
@@ -25,11 +24,16 @@
 #include "vrp/worker/telemetry.hpp"
 #include "vrp/worker/transfer.hpp"
 
+#ifndef VRP_WORKER_CPU
+#include "vrp/core/gpu/device_graph.hpp"
+#endif
+
 namespace vrp::worker {
 
-// The compute thread (ADR 0024): owns the GPU work and the resident graph,
-// and runs one task at a time in short steps. Between steps it takes what the
-// session thread sent, and shows that it is making progress.
+// The compute thread (ADR 0024): owns the GPU work, or the CPU's in a build
+// without CUDA (ADR 0037), and the resident graph, and runs one task at a
+// time in short steps. Between steps it takes what the session thread sent,
+// and shows that it is making progress.
 class TaskRunner {
  public:
   TaskRunner(Queues& queues, const ObjectTransfer& transfer,
@@ -63,8 +67,10 @@ class TaskRunner {
     core::RoadGraph graph;
     std::optional<std::string> geometry_sha256;  // set once it is loaded
     core::EdgeGeometry geometry;
+#ifndef VRP_WORKER_CPU
     std::optional<core::EdgeCost> device_cost;  // of `device`, once created
     std::optional<core::gpu::DeviceGraph> device;
+#endif
   };
 
   struct IslandRun;

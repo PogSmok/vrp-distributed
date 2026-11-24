@@ -127,6 +127,21 @@ jobs:
           find worker -type f -name "*.cpp"
           | xargs -r -P "$(nproc)" -n 1 clang-tidy-22 -p build/worker --quiet
 
+      # The CPU worker (ADR 0037), from the same vcpkg packages.
+      - name: Configure the CPU worker
+        run: cmake --preset worker-cpu
+
+      - name: Build the CPU worker
+        run: cmake --build --preset worker-cpu
+
+      - name: Test the CPU worker
+        run: ctest --preset worker-cpu
+
+      - name: Run clang-tidy on the CPU worker
+        run: >
+          find worker -type f -name "*.cpp"
+          | xargs -r -P "$(nproc)" -n 1 clang-tidy-22 -p build/worker-cpu --quiet
+
   sanitizers:
     name: ${{ matrix.name }}
     strategy:

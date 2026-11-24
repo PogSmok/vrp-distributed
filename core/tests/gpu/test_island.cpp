@@ -2,21 +2,13 @@
 
 #include <gtest/gtest.h>
 
-#include <algorithm>
-#include <cstddef>
-#include <cstdint>
-#include <cstdlib>
-#include <limits>
-#include <numeric>
 #include <optional>
-#include <vector>
 
+#include "local_search_oracle.hpp"
 #include "test_problems.hpp"
 #include "vrp/core/gpu/device_matrix.hpp"
-#include "vrp/core/solution.hpp"
-#include "vrp/core/solver/evaluation.hpp"
-#include "vrp/core/status.hpp"
-#include "vrp/core/types.hpp"
+#include "vrp/core/solver/island.hpp"
+#include "vrp/core/solver/population.hpp"
 
 namespace vrp::core::gpu {
 namespace {
@@ -24,89 +16,26 @@ namespace {
 using test_support::Cvrp;
 using test_support::MakeRandomCvrp;
 
-// The optimum by brute force: every order of the customers, each cut into
-// at most vehicle_count routes that respect the capacity.
-RouteCost Optimum(const Cvrp& cvrp) {
-  const Problem& problem = cvrp.problem;
-  std::vector<std::uint32_t> tour(problem.demands.size() - 1);
-  std::iota(tour.begin(), tour.end(), 1U);
-  constexpr RouteCost infinity = std::numeric_limits<RouteCost>::max();
-  RouteCost optimum = infinity;
-  for (bool more = true; more;
-       more = std::ranges::next_permutation(tour).found) {
-    const std::size_t size = tour.size();
-    // best[k][j]: the first j customers of the order in k routes.
-    std::vector<std::vector<RouteCost>> best(
-        problem.vehicle_count + 1, std::vector<RouteCost>(size + 1, infinity));
-    best[0][0] = 0;
-    for (std::size_t routes = 1; routes <= problem.vehicle_count; ++routes) {
-      for (std::size_t begin = 0; begin < size; ++begin) {
-        if (best[routes - 1][begin] == infinity) {
-          continue;
-        }
-        RouteCost inside = 0;
-        std::uint64_t load = 0;
-        for (std::size_t end = begin + 1; end <= size; ++end) {
-          load += problem.demands[tour[end - 1]];
-          if (load > problem.vehicle_capacity) {
-            break;
-          }
-          inside += end == begin + 1
-                        ? cvrp.matrix.At(0, tour[begin])
-                        : cvrp.matrix.At(tour[end - 2], tour[end - 1]);
-          const RouteCost cost = best[routes - 1][begin] + inside +
-                                 cvrp.matrix.At(tour[end - 1], 0);
-          best[routes][end] = std::min(best[routes][end], cost);
-        }
-      }
-      optimum = std::min(optimum, best[routes][size]);
-    }
-  }
-  return optimum;
-}
-
-// The island's best solution; aborts if it has none, so that a test cannot
-// read an empty optional.
-const solver::Individual& BestOf(const Island& island) {
-  const std::optional<solver::Individual>& best = island.Best();
-  if (!best.has_value()) {
-    std::abort();
-  }
-  return *best;
-}
-
-TEST(IslandTest, FindsTheOptimumOfSmallProblems) {
-  for (std::uint32_t seed = 0; seed < 5; ++seed) {
-    const Cvrp cvrp = MakeRandomCvrp(7, seed);
-    const DeviceMatrix matrix = DeviceMatrix::Create(cvrp.matrix).Value();
-    Island island = Island::Create(matrix, cvrp.problem, {}, seed).Value();
-    for (int step = 0; step < 50; ++step) {
-      ASSERT_TRUE(island.Step().IsOk());
-    }
-    const solver::Individual& best = BestOf(island);
-    EXPECT_TRUE(ValidateSolution(cvrp.problem, {.routes = best.routes}).IsOk());
-    EXPECT_EQ(solver::Evaluate(cvrp.matrix, cvrp.problem, best.routes),
-              best.evaluation);
-    EXPECT_EQ(best.evaluation.distance, Optimum(cvrp)) << "seed " << seed;
-  }
-}
-
-TEST(IslandTest, ImportsValidMigrantsOnly) {
-  const Cvrp cvrp = MakeRandomCvrp(30, /*seed=*/1);
+// Every random draw is on the CPU and the local searches agree, so one seed
+// gives one search on either; solver/test_island.cpp tests the search itself.
+TEST(IslandTest, SearchesAlikeOnTheCpu) {
+  const Cvrp cvrp = MakeRandomCvrp(60, /*seed=*/4);
   const DeviceMatrix matrix = DeviceMatrix::Create(cvrp.matrix).Value();
-  Island source = Island::Create(matrix, cvrp.problem, {}, 0).Value();
-  for (int step = 0; step < 5; ++step) {
-    ASSERT_TRUE(source.Step().IsOk());
+  solver::Island gpu = CreateIsland(matrix, cvrp.problem, {}, 7).Value();
+  solver::Island cpu =
+      solver::Island::CreateOnCpu(cvrp.matrix, cvrp.problem, {}, 7,
+                                  test_support::FourThreadFor)
+          .Value();
+  for (int step = 0; step < 30; ++step) {
+    ASSERT_TRUE(gpu.Step().IsOk());
+    ASSERT_TRUE(cpu.Step().IsOk());
   }
-  const Solution migrant = {.routes = BestOf(source).routes};
-
-  Island island = Island::Create(matrix, cvrp.problem, {}, 1).Value();
-  ASSERT_TRUE(island.Import(migrant).IsOk());
-  EXPECT_EQ(BestOf(island).routes, migrant.routes);
-
-  const Solution missing_customer = {.routes = {{1, 2, 3}}};
-  EXPECT_EQ(island.Import(missing_customer).Code(),
-            StatusCode::kInvalidArgument);
+  const std::optional<solver::Individual>& gpu_best = gpu.Best();
+  const std::optional<solver::Individual>& cpu_best = cpu.Best();
+  ASSERT_TRUE(gpu_best.has_value());
+  ASSERT_TRUE(cpu_best.has_value());
+  EXPECT_EQ(gpu_best->routes, cpu_best->routes);
+  EXPECT_EQ(gpu_best->evaluation, cpu_best->evaluation);
 }
 
 }  // namespace

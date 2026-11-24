@@ -139,20 +139,25 @@ def _register(graph: Path, ca: bytes) -> None:
     marker.write_text(stamp, encoding="utf-8")
 
 
-def _worker_config(ca: bytes) -> Path:
-    """The worker's configuration, made again if the CA has changed."""
+def _credentials(ca: bytes) -> tuple[Path, str]:
+    """A worker configuration and a client token, new if the CA changed."""
     directory = _DATA / "worker"
     config = directory / "worker.json"
+    token = _DATA / "client-token"
     certificate = directory / "ca.pem"
     if (
         config.exists()
+        and token.exists()
         and certificate.exists()
         and certificate.read_bytes() == ca
     ):
-        return config
-    # A token name is used once, so a new configuration needs a new name. An
-    # old token stays valid until its line is deleted (deploy/README.md).
+        return config, token.read_text("utf-8")
+    # A token name is used once, so new credentials need a new name. An old
+    # token stays valid until its line is deleted (deploy/README.md).
     name = f"demo-{secrets.token_hex(3)}"
+    client = _output(
+        *_COMPOSE, "run", "--rm", "-T", "admin", "client", f"{name}-client"
+    )
     text = _output(
         *_COMPOSE,
         "run",
@@ -165,11 +170,12 @@ def _worker_config(ca: bytes) -> Path:
         "host.docker.internal:9101",
     )
     directory.mkdir(parents=True, exist_ok=True)
-    config.write_bytes(text)
-    # It holds the worker's token. On Windows, the folder's permissions apply.
-    config.chmod(0o600)
+    # They hold tokens. On Windows, the folder's permissions apply.
+    for path, content in ((config, text), (token, client.strip())):
+        path.write_bytes(content)
+        path.chmod(0o600)
     certificate.write_bytes(ca)
-    return config
+    return config, token.read_text("utf-8")
 
 
 def _demo(extract: Path | None) -> None:
@@ -182,24 +188,32 @@ def _demo(extract: Path | None) -> None:
     graph = _graph(extract)
     ca = _output(*_COMPOSE, "run", "--rm", "-T", "admin", "ca")
     _register(graph, ca)
-    config = _worker_config(ca).relative_to(_ROOT)
-    binary = Path("build/worker/worker/vrp-worker")
-    if os.name == "nt":
-        binary = binary.with_suffix(".exe")
+    config, token = _credentials(ca)
+    name = "vrp-worker.exe" if os.name == "nt" else "vrp-worker"
+    builds = [
+        Path("build", p, "worker", name) for p in ("worker", "worker-cpu")
+    ]
+    binary = next((b for b in builds if (_ROOT / b).exists()), builds[0])
     print(  # noqa: T201
         f"""
 The control plane is running.
 
-  Client   http://localhost:8501
+  Client   https://localhost:8501
   Grafana  http://localhost:3000
 
 Start a worker in another terminal, from the repository root
 (docs/setup.md shows how to build it):
 
-  {binary} --config {config}
+  {binary} --config {config.relative_to(_ROOT)}
 
-Then open the client, choose "Build a problem", and press
-"Solve this problem" to solve 400 customers around Warsaw.
+Then open the client and sign in with this token, which is also in
+{_DATA.relative_to(_ROOT) / "client-token"}:
+
+  {token}
+
+Choose "Build a problem", and press "Solve this problem" to solve 400
+customers around Warsaw. The browser warns about the certificate unless
+it trusts data/demo/worker/ca.pem (deploy/README.md).
 """
     )
 

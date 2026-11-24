@@ -61,7 +61,7 @@ are never reused; present tense.
 | 0020 | [Edge cost: road length and travel time stored, chosen per job](0020-edge-cost-length-and-travel-time.md)                  | Accepted                       |
 | 0021 | [Orchestrator core: single-threaded, event-driven scheduler](0021-orchestrator-scheduler-as-single-threaded-event-loop.md) | Accepted                       |
 | 0022 | [Persist state transitions before sending messages](0022-persist-state-transitions-before-sending.md)                      | Accepted                       |
-| 0023 | [GPU algorithms in a standalone core library](0023-gpu-algorithms-in-standalone-core-library.md)                           | Accepted; see 0036             |
+| 0023 | [GPU algorithms in a standalone core library](0023-gpu-algorithms-in-standalone-core-library.md)                           | Accepted; see 0036, 0037       |
 | 0024 | [Worker: separate session and compute threads, short GPU steps](0024-worker-separates-session-and-compute-threads.md)      | Accepted; extended by 0032     |
 | 0025 | [Route geometry: legs re-routed on the CPU in FINALIZE](0025-route-geometry-by-cpu-leg-routing.md)                         | Accepted                       |
 | 0026 | [Orchestrator implementation language: Python (asyncio)](0026-orchestrator-implementation-language.md)                     | Accepted                       |
@@ -69,9 +69,11 @@ are never reused; present tense.
 | 0028 | [Result artifact format: JSON, polylines in degrees](0028-result-artifact-format.md)                                       | Accepted                       |
 | 0029 | [Object store: SeaweedFS instead of MinIO](0029-object-store-seaweedfs.md)                                                 | Accepted; see 0031             |
 | 0030 | [Live map: workers route each new best plan on the roads](0030-live-map-from-island-bests.md)                              | Accepted                       |
-| 0031 | [The orchestrator and the client run in Docker Compose](0031-orchestrator-and-client-in-compose.md)                        | Accepted                       |
+| 0031 | [The orchestrator and the client run in Docker Compose](0031-orchestrator-and-client-in-compose.md)                        | Accepted; see 0038             |
 | 0032 | [Bounded store retries; a lost GPU restarts its worker](0032-bounded-store-retries-and-lost-gpu-restart.md)                | Accepted                       |
 | 0033 | [Distance batches hold one warp of 32 sources](0033-distance-batches-of-one-warp.md)                                       | Accepted                       |
 | 0034 | [Islands exchange migrants on a 2-second timer](0034-migrant-exchange-on-a-timer.md)                                       | Accepted                       |
 | 0035 | [GPU build targets: compute capability 6.1 and 12.0](0035-gpu-build-targets.md)                                            | Accepted                       |
 | 0036 | [Orchestrator tests use a Python fake worker](0036-orchestrator-tests-use-a-python-fake-worker.md)                         | Accepted                       |
+| 0037 | [A worker built without CUDA runs on the CPU](0037-worker-without-cuda-runs-on-the-cpu.md)                                 | Accepted                       |
+| 0038 | [Users sign in to the client with their own tokens](0038-client-sign-in-with-named-tokens.md)                              | Accepted                       |

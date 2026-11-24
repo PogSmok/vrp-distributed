@@ -1,13 +1,13 @@
 # Setup: from a clean machine to a solved job
 
-This guide sets up one machine as both the server and a GPU worker, then
-solves 400 customers around Warsaw. `deploy/README.md` covers a lab of
-several machines.
+This guide sets up one machine as both the server and a worker, then solves
+400 customers around Warsaw. `deploy/README.md` covers a lab of several
+machines.
 
 You need:
 
 - an NVIDIA GPU of compute capability 6.1 (GTX 10 series) or newer, with a
-  driver that supports CUDA 12.9;
+  driver that supports CUDA 12.9, or else the CPU worker (step 3);
 - an internet connection for the downloads, including a 300 MB map extract.
 
 The Windows path below was followed on the development machine; the Linux
@@ -104,6 +104,10 @@ CUDA toolkit, such as CUDA 13 installed beside 12.9, add
 `-DCUDAToolkit_ROOT=<CUDA 12.9>` to the first `cmake` command. The worker is
 `build/worker/worker/vrp-worker`, with `.exe` on Windows.
 
+Without an NVIDIA GPU, skip CUDA and use the `worker-cpu` preset in place of
+`worker` in the three commands. That worker runs every task on the CPU, slower
+in SOLVE (ADR 0037), and is `build/worker-cpu/worker/vrp-worker`.
+
 ## 4. Start the demo
 
 In a terminal of your choice, from the repository:
@@ -128,11 +132,13 @@ build/worker/worker/vrp-worker --config data/demo/worker/worker.json
 ```
 
 On Windows: `build\worker\worker\vrp-worker.exe --config data\demo\worker\worker.json`.
-It logs `registered` when it has connected. Leave it running.
+The CPU worker is in `build/worker-cpu` instead. It logs `registered` when it has connected. Leave it running.
 
 ## 6. Solve a job
 
-1. Open <http://localhost:8501>.
+1. Open <https://localhost:8501>, accept the certificate warning (or trust
+   `data/demo/worker/ca.pem`), and sign in with the token the demo printed,
+   which is also in `data/demo/client-token`.
 2. Choose **Build a problem**. It starts with 400 customers around Warsaw.
 3. Press **Solve this problem**, then **Start solving**.
 4. The map follows the job: snapping, road distances, then the search, with

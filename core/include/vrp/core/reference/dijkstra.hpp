@@ -1,16 +1,19 @@
 #ifndef VRP_CORE_REFERENCE_DIJKSTRA_HPP_
 #define VRP_CORE_REFERENCE_DIJKSTRA_HPP_
 
+#include <cstddef>
+#include <functional>
 #include <span>
 #include <vector>
 
 #include "vrp/core/distance_matrix.hpp"
 #include "vrp/core/graph.hpp"
+#include "vrp/core/leg_router.hpp"
 #include "vrp/core/status.hpp"
 #include "vrp/core/types.hpp"
 
-// Simple CPU implementations used as correctness oracles and for tests on
-// machines without a GPU (ADR 0023). Never used in production.
+// Simple CPU implementations: correctness oracles, tests on machines without
+// a GPU (ADR 0023), and the CPU worker (ADR 0037).
 namespace vrp::core::reference {
 
 // Shortest-path costs from `source` to every node, kNoRoute for nodes it
@@ -25,6 +28,15 @@ namespace vrp::core::reference {
 // if a pair of stops has no route, which ADR 0011 treats as a bug.
 [[nodiscard]] StatusOr<DistanceMatrix> ComputeDistanceMatrix(
     const RoadGraph& graph, EdgeCost cost, std::span<const NodeId> stops);
+
+// The rows of gpu::ComputeDistanceRows, one Dijkstra per row on
+// `parallel_for`'s threads, and failing alike. `stop_requested` is checked
+// before each row, from those threads.
+[[nodiscard]] StatusOr<std::vector<Cost>> ComputeDistanceRows(
+    const RoadGraph& graph, EdgeCost cost, std::span<const NodeId> stops,
+    std::size_t first_row, std::size_t row_count,
+    const ParallelFor& parallel_for,
+    const std::function<bool()>& stop_requested);
 
 }  // namespace vrp::core::reference
 

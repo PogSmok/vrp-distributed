@@ -14,6 +14,10 @@
 #include "vrp/core/status.hpp"
 #include "vrp/core/types.hpp"
 
+namespace vrp::core::solver {
+struct SearchStaging;
+}  // namespace vrp::core::solver
+
 namespace vrp::core::gpu {
 
 // The local search of ADR 0018, for a batch of solutions at once. Each round
@@ -22,6 +26,7 @@ namespace vrp::core::gpu {
 // intra-route 2-opt and 2-opt*. The CPU then applies the best improving
 // moves that share no route, and rounds repeat until no move improves.
 // Costs are penalised: routes may exceed the capacity at `penalty` per unit.
+// reference::LocalSearch does the same on the CPU, with the same results.
 class LocalSearch {
  public:
   // `matrix` must outlive the search. `neighbor_count` is the size of each
@@ -48,14 +53,9 @@ class LocalSearch {
       std::span<std::vector<Route>> solutions, double penalty);
 
  private:
-  // The batch's routes in the layout the kernel reads; see local_search.cu.
-  struct Staging;
-
   LocalSearch() = default;
 
-  void Stage(std::span<const std::vector<Route>> solutions,
-             Staging& staging) const;
-  Status UploadStaging(const Staging& staging) const;
+  Status UploadStaging(const solver::SearchStaging& staging) const;
 
   const DistanceMatrix* matrix_ = nullptr;
   const Cost* matrix_device_ = nullptr;  // shared with other searches
@@ -65,7 +65,7 @@ class LocalSearch {
 
   DeviceBuffer<std::uint32_t> demands_;
   DeviceBuffer<std::uint32_t> neighbors_;
-  // Per solution of the batch, rebuilt every round; see local_search.cu.
+  // Per solution of the batch, rebuilt every round (solver::SearchStaging).
   DeviceBuffer<std::uint32_t> route_of_;
   DeviceBuffer<std::uint32_t> position_;
   DeviceBuffer<std::uint32_t> nodes_;
@@ -77,7 +77,7 @@ class LocalSearch {
   DeviceBuffer<std::int64_t> route_distance_;
   DeviceBuffer<std::int64_t> route_load_;
   DeviceBuffer<std::uint32_t> empty_route_;
-  // The best move of each customer, as the `Move` records of local_search.cu.
+  // The best move of each customer, as solver::Move records.
   DeviceBuffer<std::byte> moves_;
 };
 

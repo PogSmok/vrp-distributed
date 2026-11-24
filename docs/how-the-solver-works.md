@@ -25,7 +25,9 @@ every other, which two phases compute:
 - **DISTANCE** computes shortest paths from every stop on the GPU: 32 sources
   at a time, one per lane of a warp, with a batched Bellman-Ford that relaxes
   edges until no cost improves (ADR 0017, 0033). Each task computes 250 rows
-  of the matrix, so the rows of a large problem spread over every worker.
+  of the matrix, so the rows of a large problem spread over every worker. A
+  worker built without CUDA runs one Dijkstra per row on every CPU thread
+  instead, with the same result (ADR 0037).
 
 The result is an `(n + 1) × (n + 1)` matrix of whole metres or tenths of a
 second. Roads are one-way at times, so the matrix is not symmetric.
@@ -46,7 +48,9 @@ of customers, within the fleet's vehicle count.
 
 An island is one independent search, and each island solves the whole
 problem. It follows HGS-CVRP, the hybrid genetic search of Thibaut Vidal
-(see `core/README.md`), with its expensive part on the GPU.
+(see `core/README.md`), with its expensive part on the GPU. A CPU worker
+runs the same island on its threads, and with the same seed finds the same
+plans, more slowly.
 
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="images/island-dark.svg">
@@ -100,8 +104,8 @@ Selection keeps the ones that happened to inherit good parts.
 
 ## Many islands
 
-A solve task runs P islands on its worker's GPU, 5 by default in the client.
-They take turns on the GPU and share one read-only copy of the matrix. An
+A solve task runs P islands on its worker, 5 by default in the client. They
+take turns on the GPU or CPU and share one read-only copy of the matrix. An
 island lives on one worker for the whole task; it is never split or moved.
 
 Islands search apart, so they explore different plans, and trade their best
@@ -113,7 +117,7 @@ ones through the **migrant pool** in the orchestrator (ADR 0004, 0034):
 - A migrant joins the receiving island's population. It does not overwrite
   it, which would destroy the diversity that keeps the search moving.
 
-## What more GPUs change
+## What more workers change
 
 - **DISTANCE gets shorter**, because its rows are split across workers.
 - **SOLVE takes as long**, since it runs until its time limit, or until the

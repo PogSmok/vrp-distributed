@@ -35,16 +35,16 @@ graph LR
 
     subgraph 3 ["VRP-Distributed"]
 
-      16["<b>Worker</b><br/><small>[Container: C++ / CUDA]</small><br/>Computes distances and runs the solver on one GPU."]
+      16["<b>Worker</b><br/><small>[Container: C++ / CUDA]</small><br/>Computes distances and runs the solver on one GPU, or on the CPU if built without CUDA."]
       26["<b>Graph Preprocessor</b><br/><small>[Container: Python CLI / pyrosm]</small><br/>Turns OSM extracts into versioned graphs."]
-      27["<b>Admin Tool</b><br/><small>[Container: Python CLI]</small><br/>Creates secrets, issues worker configurations, uploads and registers graphs."]
+      27["<b>Admin Tool</b><br/><small>[Container: Python CLI]</small><br/>Creates secrets, issues worker configurations and client tokens, uploads and registers graphs."]
       28[("<b>Object Store</b><br/><small>[Container: SeaweedFS (S3)]</small><br/>Graphs, distance matrices and results.")]
       29[("<b>Job State DB</b><br/><small>[Container: PostgreSQL]</small><br/>Jobs, tasks, assignments, graph catalogue.")]
       4["<b>Client Application</b><br/><small>[Container: Python / Streamlit]</small><br/>Submits problems, shows routes and convergence."]
       5["<b>Orchestrator</b><br/><small>[Container: Python / grpcio (asyncio)]</small><br/>Schedules jobs on workers; owns job state and the migrant pool."]
     end
 
-    1-.->4
+    1-. "Signs in with a token<br/><small>[HTTPS]</small>" .->4
     4-. "Submits jobs, polls progress<br/><small>[gRPC/TLS]</small>" .->5
     4-. "Downloads results<br/><small>[HTTPS, presigned]</small>" .->28
     5-.->29
@@ -86,8 +86,8 @@ graph TB
         9["<b>Auth</b><br/><small>[Component: gRPC interceptor]</small><br/>Wraps all three APIs; checks named tokens and roles from the token file; identifies the caller."]
       end
 
-      16["<b>Worker</b><br/><small>[Container: C++ / CUDA]</small><br/>Computes distances and runs the solver on one GPU."]
-      27["<b>Admin Tool</b><br/><small>[Container: Python CLI]</small><br/>Creates secrets, issues worker configurations, uploads and registers graphs."]
+      16["<b>Worker</b><br/><small>[Container: C++ / CUDA]</small><br/>Computes distances and runs the solver on one GPU, or on the CPU if built without CUDA."]
+      27["<b>Admin Tool</b><br/><small>[Container: Python CLI]</small><br/>Creates secrets, issues worker configurations and client tokens, uploads and registers graphs."]
       28[("<b>Object Store</b><br/><small>[Container: SeaweedFS (S3)]</small><br/>Graphs, distance matrices and results.")]
       29[("<b>Job State DB</b><br/><small>[Container: PostgreSQL]</small><br/>Jobs, tasks, assignments, graph catalogue.")]
       4["<b>Client Application</b><br/><small>[Container: Python / Streamlit]</small><br/>Submits problems, shows routes and convergence."]
@@ -134,12 +134,12 @@ graph TB
       subgraph 16 ["Worker"]
 
         17["<b>Session Client</b><br/><small>[Component: gRPC client, session thread]</small><br/>Registration, stream, heartbeats, reconnects, fresh URLs; resends unconfirmed reports."]
-        18["<b>Task Runner</b><br/><small>[Component: Compute thread]</small><br/>Runs one task at a time in short GPU steps; handles cancel."]
-        19["<b>Graph Cache</b><br/><small>[Component]</small><br/>Verified graphs on disk; one graph resident on the GPU."]
+        18["<b>Task Runner</b><br/><small>[Component: Compute thread]</small><br/>Runs one task at a time in short steps; handles cancel."]
+        19["<b>Graph Cache</b><br/><small>[Component]</small><br/>Verified graphs on disk; one graph resident on the GPU or in memory."]
         20["<b>Object Transfer</b><br/><small>[Component: libcurl]</small><br/>Presigned GET and PUT with retries."]
         21["<b>Snapper</b><br/><small>[Component: vrp-core / C++]</small><br/>Snaps coordinates to graph nodes."]
-        22["<b>Distance Engine</b><br/><small>[Component: vrp-core / CUDA]</small><br/>Many-source shortest paths."]
-        23["<b>Island Solver</b><br/><small>[Component: vrp-core / CUDA]</small><br/>Populations, local search, migrant import and export."]
+        22["<b>Distance Engine</b><br/><small>[Component: vrp-core / CUDA or C++]</small><br/>Many-source shortest paths."]
+        23["<b>Island Solver</b><br/><small>[Component: vrp-core / CUDA or C++]</small><br/>Populations, local search, migrant import and export."]
         24["<b>Result Builder</b><br/><small>[Component: vrp-core / C++]</small><br/>Routes legs on the CPU, checks the cost, builds polylines and the result artifact."]
         25["<b>Plan Router</b><br/><small>[Component: Low-priority thread]</small><br/>Routes the latest best plan on the roads for the live map."]
       end
@@ -170,9 +170,9 @@ graph TB
 ```mermaid
 graph TB
 
-    subgraph 110 ["GPU Worker PC"]
+    subgraph 110 ["Worker PC"]
 
-      111["<b>Worker</b><br/><small>[Container: C++ / CUDA]</small><br/>Computes distances and runs the solver on one GPU."]
+      111["<b>Worker</b><br/><small>[Container: C++ / CUDA]</small><br/>Computes distances and runs the solver on one GPU, or on the CPU if built without CUDA."]
     end
 
     subgraph 115 ["Admin Workstation"]
@@ -189,7 +189,7 @@ graph TB
         108["<b>Grafana</b><br/><small>[Software System]</small><br/>Shows dashboards."]
         93["<b>Orchestrator</b><br/><small>[Container: Python / grpcio (asyncio)]</small><br/>Schedules jobs on workers; owns job state and the migrant pool."]
         94["<b>Client Application</b><br/><small>[Container: Python / Streamlit]</small><br/>Submits problems, shows routes and convergence."]
-        96["<b>Admin Tool</b><br/><small>[Container: Python CLI]</small><br/>Creates secrets, issues worker configurations, uploads and registers graphs."]
+        96["<b>Admin Tool</b><br/><small>[Container: Python CLI]</small><br/>Creates secrets, issues worker configurations and client tokens, uploads and registers graphs."]
         98[("<b>Job State DB</b><br/><small>[Container: PostgreSQL]</small><br/>Jobs, tasks, assignments, graph catalogue.")]
       end
 

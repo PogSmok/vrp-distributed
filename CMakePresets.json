@@ -57,6 +57,17 @@
       }
     },
     {
+      "name": "worker-cpu",
+      "displayName": "Release with the worker on the CPU, without CUDA; needs VCPKG_ROOT",
+      "inherits": "release",
+      "generator": "Ninja",
+      "toolchainFile": "$env{VCPKG_ROOT}/scripts/buildsystems/vcpkg.cmake",
+      "cacheVariables": {
+        "VRP_BUILD_WORKER": "ON",
+        "FETCHCONTENT_BASE_DIR": "${sourceDir}/_deps/worker-cpu"
+      }
+    },
+    {
       "name": "asan",
       "displayName": "AddressSanitizer + UndefinedBehaviorSanitizer",
       "inherits": "base",
@@ -104,6 +115,10 @@
     {
       "name": "worker",
       "configurePreset": "worker"
+    },
+    {
+      "name": "worker-cpu",
+      "configurePreset": "worker-cpu"
     },
     {
       "name": "asan",
@@ -156,6 +171,11 @@
       "name": "worker",
       "inherits": "base",
       "configurePreset": "worker"
+    },
+    {
+      "name": "worker-cpu",
+      "inherits": "base",
+      "configurePreset": "worker-cpu"
     },
     {
       "name": "asan",

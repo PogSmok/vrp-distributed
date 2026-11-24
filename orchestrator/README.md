@@ -1,6 +1,6 @@
 # vrp-orchestrator
 
-Schedules jobs on the GPU workers and owns all job state (ADR 0003, 0021,
+Schedules jobs on the workers and owns all job state (ADR 0003, 0021,
 0026). It is a member of the Python workspace defined by the root
 `pyproject.toml`; `uv sync --all-packages` installs it.
 
@@ -85,7 +85,8 @@ and creates the bucket if it is missing; SIGTERM or Ctrl+C stops it.
   group waits 60 s; a task has 3 attempts, and the solve phase restarts at
   most once. The GPU memory check (ADR 0007) counts what each phase
   allocates: the graph, plus one distance batch in DISTANCE, or the shared
-  matrix and each island's working memory in SOLVE.
+  matrix and each island's working memory in SOLVE. A CPU worker reports its
+  RAM as GPU memory, so the same check applies (ADR 0037).
 
 Known limits, to change when they matter:
 

@@ -4,6 +4,7 @@ Runs in the orchestrator's image, on the `secrets` volume:
 
     admin.py init
     admin.py worker <name> [--metrics-address <host:port>]
+    admin.py client <name>
     admin.py ca
     admin.py grafana-password
     admin.py register-graph <directory>
@@ -130,8 +131,16 @@ def _server_is_current(path: Path, ca: Path, host: str) -> bool:
         return False
     names = certificate.extensions.get_extension_for_class(
         x509.SubjectAlternativeName
-    ).value.get_values_for_type(x509.DNSName)
-    return host in names and not _expiring(certificate)
+    ).value
+    return _host_name(host) in names and not _expiring(certificate)
+
+
+def _host_name(host: str) -> x509.GeneralName:
+    """`host` as TLS checks it: an IP address, or else a DNS name."""
+    try:
+        return x509.IPAddress(ipaddress.ip_address(host))
+    except ValueError:
+        return x509.DNSName(host)
 
 
 def _make_server_certificate(ca: Path, host: str) -> tuple[bytes, bytes]:
@@ -145,9 +154,11 @@ def _make_server_certificate(ca: Path, host: str) -> tuple[bytes, bytes]:
     key = ec.generate_private_key(ec.SECP256R1())
     public = key.public_key()
     names: list[x509.GeneralName] = [
-        x509.DNSName(name) for name in sorted({host, *_INTERNAL_NAMES})
+        x509.DNSName(name) for name in _INTERNAL_NAMES
     ]
     names.append(x509.IPAddress(ipaddress.ip_address("127.0.0.1")))
+    if _host_name(host) not in names:
+        names.append(_host_name(host))
     certificate = (
         x509.CertificateBuilder()
         .subject_name(_name(host))
@@ -224,6 +235,10 @@ def _init(_arguments: argparse.Namespace) -> int:
         for name in ("orchestrator", "store"):
             (folders[name] / "server.pem").write_bytes(certificate)
             (folders[name] / "server.key").write_bytes(key)
+    # The client serves HTTPS with the same certificate (ADR 0038).
+    ca = folders["ca"] / "ca.pem"
+    for source in (server, server.with_suffix(".key"), ca):
+        (folders["client"] / source.name).write_bytes(source.read_bytes())
 
     database = _write_new(
         folders["postgres"] / "password", secrets.token_urlsafe(32)
@@ -240,15 +255,9 @@ def _init(_arguments: argparse.Namespace) -> int:
     )
 
     tokens = folders["orchestrator"] / "tokens.txt"
-    if not (folders["client"] / "token").exists():
-        token = _add_token(tokens, "client", "client")
-        (folders["client"] / "token").write_text(token, encoding="utf-8")
     if not (folders["ca"] / "admin-token").exists():
         token = _add_token(tokens, "admin", "admin")
         (folders["ca"] / "admin-token").write_text(token, encoding="utf-8")
-    (folders["client"] / "ca.pem").write_bytes(
-        (folders["ca"] / "ca.pem").read_bytes()
-    )
     (folders["ca"] / "host").write_text(host, encoding="utf-8")
     (folders["orchestrator"] / "orchestrator.toml").write_text(
         f"""listen = "0.0.0.0:50051"
@@ -288,6 +297,14 @@ def _worker(arguments: argparse.Namespace) -> int:
         "log_dir": "logs",
     }
     sys.stdout.write(json.dumps(config, indent=2) + "\n")
+    return 0
+
+
+def _client(arguments: argparse.Namespace) -> int:
+    token = _add_token(
+        _ROOT / "orchestrator" / "tokens.txt", arguments.name, "client"
+    )
+    sys.stdout.write(token + "\n")
     return 0
 
 
@@ -358,6 +375,9 @@ def main() -> int:
     worker.add_argument("name")
     worker.add_argument("--metrics-address", default="")
     worker.set_defaults(run=_worker)
+    client = commands.add_parser("client")
+    client.add_argument("name")
+    client.set_defaults(run=_client)
     graph = commands.add_parser("register-graph")
     graph.add_argument("directory", type=Path)
     graph.set_defaults(run=_register_graph)
