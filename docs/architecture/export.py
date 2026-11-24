@@ -8,6 +8,7 @@ dropped, so that GitHub draws the views in the reader's light or dark theme.
 Run it after changing the model, and commit what it writes.
 """
 
+import os
 import re
 import subprocess
 import sys
@@ -37,11 +38,16 @@ _EMBEDDED: Final = (
 
 
 def _export(directory: Path) -> None:
+    # Off Windows, as this user: the image's own cannot write to `directory`.
+    user: list[str] = []
+    if sys.platform != "win32":
+        user = ["--user", f"{os.getuid()}:{os.getgid()}"]
     subprocess.run(  # noqa: S603  # a fixed command
         [  # noqa: S607
             "docker",
             "run",
             "--rm",
+            *user,
             "-v",
             f"{_HERE}:/model:ro",
             "-v",
