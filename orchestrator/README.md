@@ -89,6 +89,10 @@ and creates the bucket if it is missing; SIGTERM or Ctrl+C stops it.
 
 Known limits, to change when they matter:
 
+- **The GPU memory check counts the graph in SOLVE**, although the worker
+  frees it then; on a GPU with little room, a solve task may wait for no
+  reason.
+
 - **Commits rewrite whole rows.** Each progress report writes its island's
   row again: its best solution, about 30 KB at 5,000 customers, and its
   whole convergence history, which grows during the run; the job's

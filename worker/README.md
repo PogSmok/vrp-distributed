@@ -84,9 +84,13 @@ and stops the worker.
 Known limits, to change when they matter:
 
 - Islands step in turn rather than in one batch (see `core/README.md`).
+- Parsing a graph reports no progress, so a graph that takes over 60 s to
+  parse would trip the stall check.
 - A graph file is held in memory while it is downloaded and checked, and the
   cache never evicts a graph version (ADR 0015's retention is still open).
 - `worker.log` is not rotated.
+- The session client and the plan router's thread have no automated tests;
+  they were checked with real processes, by hand.
 
 ## Build and test
 

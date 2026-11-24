@@ -1,6 +1,6 @@
 # 0004. Island migration via orchestrator-held migrant pool
 
-- **Status:** Accepted
+- **Status:** Accepted; exchange interval set by 0034
 - **Date:** 2026-11-21
 - **Related:** 0011, 0013, 0014, 0018, 0021
 

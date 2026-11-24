@@ -205,6 +205,7 @@ def _init(_arguments: argparse.Namespace) -> int:
         for name in (
             "ca",
             "postgres",
+            "monitor",
             "store",
             "orchestrator",
             "client",
@@ -215,6 +216,7 @@ def _init(_arguments: argparse.Namespace) -> int:
         folder.mkdir(parents=True, exist_ok=True)
     _make_ca(folders["ca"])
     _write_new(folders["grafana"] / "password", secrets.token_urlsafe(18))
+    _write_new(folders["monitor"] / "password", secrets.token_urlsafe(32))
 
     server = folders["orchestrator"] / "server.pem"
     if not _server_is_current(server, folders["ca"], host):

@@ -1,5 +1,6 @@
 # --- Structurizr ---
 .structurizr/
+docs/architecture/workspace.json
 
 # --- Python ---
 __pycache__/
@@ -70,6 +71,7 @@ deploy/backups/
 *.key
 
 # --- IDE / OS ---
+.claude/
 .vscode/
 .idea/
 .vs/

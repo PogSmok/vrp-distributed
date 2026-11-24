@@ -1,0 +1,25 @@
+name: Links
+
+# Links to outside sites, weekly rather than on every push: they break for
+# reasons of their own, and a failure here is for a person to look into.
+on:
+  schedule:
+    - cron: '0 6 * * 1'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  external:
+    name: External links
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Check external links
+        run: >
+          docker run --rm -v "$PWD:/repo:ro" -w /repo
+          lycheeverse/lychee@sha256:eaff3e0a13603c9a701accfcc84f44158bb77bf36ecfa4622b626056c3463892
+          --exclude-loopback --exclude 'server\.lab' --max-retries 3
+          --accept '200..=299,429' --no-progress '**/*.md'

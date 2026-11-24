@@ -29,8 +29,10 @@ workspace "vrp-distributed" "Distributed GPU solver for the Vehicle Routing Prob
                 distance      = component "Distance Engine" "Many-source shortest paths." "vrp-core / CUDA"
                 solver        = component "Island Solver" "Populations, local search, migrant import and export." "vrp-core / CUDA"
                 resultBuilder = component "Result Builder" "Routes legs on the CPU, checks the cost, builds polylines and the result artifact." "vrp-core / C++"
+                planRouter    = component "Plan Router" "Routes the latest best plan on the roads for the live map." "Low-priority thread"
             }
             preprocessor = container "Graph Preprocessor" "Turns OSM extracts into versioned graphs." "Python CLI / pyrosm"
+            adminTool    = container "Admin Tool" "Creates secrets, issues worker configurations, uploads and registers graphs." "Python CLI"
             objectStore  = container "Object Store" "Graphs, distance matrices and results." "SeaweedFS (S3)" {
                 tags "Database"
             }
@@ -67,18 +69,19 @@ workspace "vrp-distributed" "Distributed GPU solver for the Vehicle Routing Prob
         vrp.orchestrator -> vrp.objectStore "Manages artifacts" "S3 API"
         vrp.worker -> vrp.orchestrator "Gets tasks, reports progress, sends logs" "gRPC/TLS"
         vrp.worker -> vrp.objectStore "Reads graphs, writes results" "HTTPS, presigned"
-        vrp.preprocessor -> vrp.objectStore
-        vrp.preprocessor -> vrp.orchestrator "Registers graph versions" "gRPC/TLS"
         vrp.preprocessor -> osm
+        vrp.adminTool -> vrp.objectStore "Uploads graphs" "S3 API"
+        vrp.adminTool -> vrp.orchestrator "Registers graph versions" "gRPC/TLS"
         prometheus -> vrp.orchestrator "Scrapes metrics, discovers workers" "HTTP"
         prometheus -> vrp.stateDb
         prometheus -> vrp.objectStore
         prometheus -> vrp.worker
         admin -> vrp.preprocessor
+        admin -> vrp.adminTool
 
         // --- COMPONENT relations: Orchestrator ---
         vrp.app -> vrp.orchestrator.clientApi "Submits, cancels and polls jobs" "gRPC/TLS"
-        vrp.preprocessor -> vrp.orchestrator.adminApi "Registers graph versions" "gRPC/TLS"
+        vrp.adminTool -> vrp.orchestrator.adminApi "Registers graph versions" "gRPC/TLS"
         prometheus -> vrp.orchestrator.registry "Discovers worker metrics endpoints" "HTTP"
         vrp.orchestrator.clientApi -> vrp.orchestrator.auth "Checks token and role"
         vrp.orchestrator.workerApi -> vrp.orchestrator.auth "Checks token; gets the worker name for the session"
@@ -113,6 +116,8 @@ workspace "vrp-distributed" "Distributed GPU solver for the Vehicle Routing Prob
         vrp.worker.runner -> vrp.worker.distance "DISTANCE"
         vrp.worker.runner -> vrp.worker.solver "SOLVE"
         vrp.worker.runner -> vrp.worker.resultBuilder "FINALIZE"
+        vrp.worker.runner -> vrp.worker.planRouter "Offers each new best plan"
+        vrp.worker.planRouter -> vrp.worker.session "Sends road plans"
 
         // --- DEPLOYMENT ---
         deploymentEnvironment "Lab" {
@@ -120,6 +125,7 @@ workspace "vrp-distributed" "Distributed GPU solver for the Vehicle Routing Prob
                 deploymentNode "Docker Compose" "The control plane from one Compose file; data in volumes on the server's disk." "Docker" {
                     containerInstance vrp.orchestrator
                     containerInstance vrp.app
+                    containerInstance vrp.adminTool
                     containerInstance vrp.stateDb
                     containerInstance vrp.objectStore
                     softwareSystemInstance prometheus
@@ -144,6 +150,7 @@ workspace "vrp-distributed" "Distributed GPU solver for the Vehicle Routing Prob
 
         container vrp "Containers" {
             include *
+            autoLayout lr
         }
 
         component vrp.orchestrator "OrchestratorComponents" {

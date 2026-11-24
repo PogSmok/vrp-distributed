@@ -19,14 +19,14 @@ stays valid across graph versions (ADR 0015); PREPARE snaps them to nodes.
 }
 ```
 
-| Field              | Type    | Meaning                                                                  |
-|--------------------|---------|--------------------------------------------------------------------------|
-| `schema_version`   | integer | `1`                                                                      |
-| `edge_cost`        | string  | `length` (whole metres) or `time` (tenths of a second), ADR 0020         |
-| `vehicle_count`    | integer | Number of vehicles                                                       |
-| `vehicle_capacity` | integer | Capacity of each vehicle, in the units of `demand`                       |
-| `depot`            | object  | `latitude` and `longitude` in degrees (WGS 84)                           |
-| `customers`        | array   | One object per customer: `latitude`, `longitude` and integer `demand`    |
+| Field              | Type    | Meaning                                                               |
+|--------------------|---------|-----------------------------------------------------------------------|
+| `schema_version`   | integer | `1`                                                                   |
+| `edge_cost`        | string  | `length` (whole metres) or `time` (tenths of a second), ADR 0020      |
+| `vehicle_count`    | integer | Number of vehicles                                                    |
+| `vehicle_capacity` | integer | Capacity of each vehicle, in the units of `demand`                    |
+| `depot`            | object  | `latitude` and `longitude` in degrees (WGS 84)                        |
+| `customers`        | array   | One object per customer: `latitude`, `longitude` and integer `demand` |
 
 Every field is required. Integers are at most 4,294,967,295 (2³² − 1).
 Readers ignore fields they do not know, so later writers can add fields

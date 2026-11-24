@@ -12,7 +12,7 @@ A TOML file; relative paths are relative to its directory:
 
     [storage]
     endpoint = "http://localhost:8333"
-    public_endpoint = "https://server.lab:8333"
+    public_endpoint = "https://server.lab:8334"
     bucket = "vrp"
 
 Secrets can stay out of the file, read by the libraries themselves: the

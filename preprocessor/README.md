@@ -14,6 +14,7 @@ Install [uv](https://docs.astral.sh/uv/), then, from the repository root:
 uv sync --all-packages # creates .venv from uv.lock
 uv run vrp-preprocessor --version
 ```
+
 ## Commands
 
 ```sh
@@ -42,6 +43,9 @@ version:
    `--max-edge-length-m`, 250 by default (`docs/formats/graph.md`).
 5. Nodes are ordered along a Hilbert curve, so that nodes near each other
    on the map are near each other in memory.
+
+The admin tool uploads and registers a graph version's directory
+(`deploy/README.md`); the preprocessor itself holds no credentials.
 
 The same extract and preprocessor version give the same bytes. The graph
 version ID's date comes from the extract's header, its replication

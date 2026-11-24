@@ -1208,7 +1208,7 @@ class Scheduler:
         elif task.kind is TaskKind.SOLVE:
             self._fill_solve(assignment.solve, task, job, islands)
         else:
-            self._fill_finalize(assignment.finalize, job, upload_url)
+            self._fill_finalize(assignment.finalize, task, job, upload_url)
         return vrp_pb2.OrchestratorMessage(assignment=assignment)
 
     def _fill_solve(
@@ -1241,7 +1241,11 @@ class Scheduler:
                 solve.seeds.append(island.best)
 
     def _fill_finalize(
-        self, finalize: vrp_pb2.FinalizeTask, job: Job, upload_url: str
+        self,
+        finalize: vrp_pb2.FinalizeTask,
+        task: Task,
+        job: Job,
+        upload_url: str,
     ) -> None:
         best = self._best_island(job)
         if best is None or best.best is None or best.cost is None:
@@ -1262,6 +1266,8 @@ class Scheduler:
             1, job.parameters.islands_per_task
         )
         builds = {(t.worker, t.build, t.gpu) for t in tasks if t.attempt > 0}
+        # This attempt's lease is not committed yet, so `tasks` lacks it.
+        builds.add((task.worker, task.build, task.gpu))
         for name, build, gpu in sorted(builds):
             finalize.workers.add(name=name, build=build, gpu=gpu)
         for (job_id, _), island in sorted(self.islands.items()):

@@ -1,6 +1,6 @@
 # 0017. GPU distance algorithm: batched frontier Bellman-Ford on the plain graph
 
-- **Status:** Accepted
+- **Status:** Accepted; batch size fixed by 0033
 - **Date:** 2026-11-21
 - **Related:** 0011, 0020, 0023, 0024
 

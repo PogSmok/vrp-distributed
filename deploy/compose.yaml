@@ -128,15 +128,39 @@ services:
       timeout: 5s
       retries: 30
 
+  # Creates the exporter's read-only role (ADR 0003), then exits.
+  postgres-monitor:
+    image: postgres:18.7
+    depends_on:
+      postgres:
+        condition: service_healthy
+    entrypoint: ["sh", "-c"]
+    command:
+      - PGPASSWORD="$$(cat /run/vrp/owner/password)" psql -h postgres -U vrp -d vrp -v ON_ERROR_STOP=1 -f /monitor-role.sql
+    volumes:
+      - ./monitor-role.sql:/monitor-role.sql:ro
+      - type: volume
+        source: secrets
+        target: /run/vrp/owner
+        read_only: true
+        volume:
+          subpath: postgres
+      - type: volume
+        source: secrets
+        target: /run/vrp/monitor
+        read_only: true
+        volume:
+          subpath: monitor
+
   postgres-exporter:
     image: prometheuscommunity/postgres-exporter:v0.21.1
     restart: unless-stopped
     depends_on:
-      postgres:
-        condition: service_healthy
+      postgres-monitor:
+        condition: service_completed_successfully
     environment:
       DATA_SOURCE_URI: postgres:5432/vrp?sslmode=disable
-      DATA_SOURCE_USER: vrp
+      DATA_SOURCE_USER: vrp_monitor
       DATA_SOURCE_PASS_FILE: /run/vrp/password
     volumes:
       - type: volume
@@ -144,7 +168,7 @@ services:
         target: /run/vrp
         read_only: true
         volume:
-          subpath: postgres
+          subpath: monitor
 
   # Dumps the database every night; see deploy/README.md.
   backup:

@@ -1,6 +1,6 @@
 # 0029. Object store: SeaweedFS instead of MinIO
 
-- **Status:** Accepted
+- **Status:** Accepted; graph uploads refined by 0031
 - **Date:** 2026-11-23
 - **Related:** 0007, 0009, 0016, 0019
 

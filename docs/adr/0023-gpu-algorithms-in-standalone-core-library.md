@@ -1,6 +1,6 @@
 # 0023. GPU algorithms in a standalone core library
 
-- **Status:** Accepted
+- **Status:** Accepted; test approach refined by 0036
 - **Date:** 2026-11-21
 - **Related:** 0006, 0011, 0017, 0018, 0024, 0025
 
