@@ -137,6 +137,14 @@ jobs:
       - name: Test the CPU worker
         run: ctest --preset worker-cpu
 
+      # For the Compose job, which runs a job on it.
+      - name: Keep the CPU worker
+        uses: actions/upload-artifact@v7
+        with:
+          name: vrp-worker-cpu
+          path: build/worker-cpu/worker/vrp-worker
+          retention-days: 1
+
       - name: Run clang-tidy on the CPU worker
         run: >
           find worker -type f -name "*.cpp"
@@ -369,7 +377,8 @@ jobs:
 
   compose:
     name: Docker Compose stack
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04  # the CPU worker's build
+    needs: worker
     steps:
       - uses: actions/checkout@v7
 
@@ -389,9 +398,48 @@ jobs:
           denied=$(psql -c 'SELECT 1 FROM jobs' 2>&1 || true)
           grep -q 'permission denied for table jobs' <<<"$denied"
 
+      - name: Download the CPU worker
+        uses: actions/download-artifact@v7
+        with:
+          name: vrp-worker-cpu
+          path: ${{ runner.temp }}/worker
+
+      - name: Set up uv and Python
+        uses: astral-sh/setup-uv@1db35dd8eee11c5894872e0b383ae6c406cf738d  # v10.4.0
+        with:
+          version: '0.13.7'
+          python-version: '3.14'
+          enable-cache: true
+
+      # Every part at once: TLS, tokens, the store's URLs, the worker's
+      # session and the orchestrator as it is deployed (ADR 0031, 0037).
+      - name: Run a job end to end on the CPU worker
+        run: |
+          compose() { docker compose -f deploy/compose.yaml "$@"; }
+          preprocess() { uv run --locked --package vrp-preprocessor vrp-preprocessor "$@"; }
+          dir="$RUNNER_TEMP/worker"
+          # Presigned URLs name the store by VRP_HOST's default.
+          echo "127.0.0.1 vrp.localhost" | sudo tee -a /etc/hosts
+          preprocess synthetic grid --width 60 --height 60 --output "$RUNNER_TEMP/grid"
+          preprocess problem --graph "$RUNNER_TEMP/grid" --customers 30 --output "$RUNNER_TEMP/problem.json"
+          compose run --rm -v "$RUNNER_TEMP/grid:/graph:ro" admin register-graph /graph
+          compose run --rm -T admin worker ci --metrics-address localhost:9101 > "$dir/worker.json"
+          compose run --rm -T admin ca > "$dir/ca.pem"
+          chmod +x "$dir/vrp-worker"
+          "$dir/vrp-worker" --config "$dir/worker.json" &
+          # Token names are unique across roles. Assigned on its own, so that
+          # a refusal ends the step here.
+          token=$(compose run --rm -T admin client ci-client)
+          VRP_TOKEN="$token" VRP_ORCHESTRATOR=localhost:50051 VRP_CA_CERTIFICATE="$dir/ca.pem" \
+            uv run --locked --package vrp-client python bench/jobs.py \
+            --graph-version "$(jq -r .graph_version "$RUNNER_TEMP/grid/manifest.json")" \
+            --problem "$RUNNER_TEMP/problem.json" --seconds 5 --out "$RUNNER_TEMP/jobs.jsonl"
+
       - name: Show the logs
         if: failure()
-        run: docker compose -f deploy/compose.yaml logs --no-color
+        run: |
+          docker compose -f deploy/compose.yaml logs --no-color
+          cat "$RUNNER_TEMP/worker/logs/worker.log" || true
 
   docs:
     name: Links and spelling

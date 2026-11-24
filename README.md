@@ -178,21 +178,21 @@ protocol, the ADRs, and each component's README.
 
 ## Status and limits
 
-Measured on one development machine with an RTX 5050 Laptop GPU (8 GB):
+Measured on two laptops on a 100 Mbps LAN, release builds: one with an
+RTX 5050 Laptop GPU (8 GB) and an i7-14650HX, which also ran the control
+plane, and a Linux one running the CPU worker on 12 threads:
 
 | What                                        | Measured                                                                                                  |
 |---------------------------------------------|-----------------------------------------------------------------------------------------------------------|
 | Import of Mazowieckie, a 303 MB OSM extract | 629,318 nodes and 1,343,118 edges, `graph.bin` 23.7 MB; 82 s and 148 s in two runs, byte-identical output |
-| Distance matrix, 500 customers              | 4.5 s on the GPU, Debug build                                                                             |
-| FINALIZE, 500 customers (529 legs)          | 24 to 26 s on the CPU, Debug build                                                                        |
+| Distance matrix, 5,000 customers            | 56 s on the GPU, 54 s on the 12-thread CPU, 30 s on both together                                         |
+| FINALIZE, 5,000 customers                   | 1.8 s on the i7-14650HX, 7.2 s on the 12-thread CPU                                                       |
+| 1,000 customers, 60 s, 5 seeds              | GPU and CPU together: median cost 0.32% below the GPU alone's                                             |
 | 400 customers, 5 islands, 40 s limit        | 817.4 and 821.0 km in two runs, 22 of 24 vehicles used                                                    |
 
-Not yet shown: runs on several machines, the GTX 1060 that is the oldest
-target GPU, and the worker installed as a systemd or WinSW service. The
-distance phase has a 5-minute target for 5,000 customers; the only
-measurement at that size, on a synthetic grid, took about 34 minutes.
-Benchmarks and integration tests on several machines come next. The default
-of 5 islands per worker has not been benchmarked against fewer. The components'
+Not yet shown: more than two workers, the GTX 1060 that is the oldest target
+GPU, and the worker installed as a systemd or WinSW service. The default of 5
+islands per worker has not been benchmarked against fewer. The components'
 READMEs list their known limits: [worker](worker/README.md) (graph parsing
 and the stall check, log rotation, untested threads),
 [client](client/README.md) (sign-in per tab, large road plans, untested map code)

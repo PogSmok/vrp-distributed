@@ -68,6 +68,9 @@ and creates the bucket if it is missing; SIGTERM or Ctrl+C stops it.
   and enough for 8 workers. Batching transitions is the revisit.
 - **Answered at once.** Heartbeats, progress polls and URL requests change
   nothing durable, so a slow database never delays them.
+- **URLs are signed on the event loop**, at 0.2 ms each: the largest burst,
+  a 5,000-customer SOLVE starting on 8 workers (168 URLs), holds it for
+  about 36 ms.
 - **One decision per transition.** Lease expiry, starting the next job,
   assigning a task and moving to the next phase are decided in that order,
   whenever nothing is in flight.
@@ -97,6 +100,10 @@ Known limits, to change when they matter:
 - **The memory check counts the graph in SOLVE**, although a GPU worker
   frees it then; on a GPU with little room, a solve task may wait for no
   reason.
+- **FINALIZE prefers a CPU worker** even when a GPU worker's own CPU is
+  faster (ADR 0039). At 5,000 customers it took 7.2 s on a 12-thread laptop
+  against 1.8 s on the GPU machine's 24 threads; both are well under the
+  1-minute target.
 
 - **Commits rewrite whole rows.** Each progress report writes its island's
   row again: its best solution, about 30 KB at 5,000 customers, and its
