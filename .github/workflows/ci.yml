@@ -352,6 +352,24 @@ jobs:
           uv run --locked python -X dev -X warn_default_encoding
           -m pytest -m "postgres or s3"
 
+  compose:
+    name: Docker Compose stack
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Start the stack from scratch
+        run: docker compose -f deploy/compose.yaml up --build --wait --wait-timeout 300
+
+      - name: Check that a backup restores
+        run: |
+          docker compose -f deploy/compose.yaml exec -T backup sh /backup.sh now
+          docker compose -f deploy/compose.yaml exec -T backup sh /backup.sh verify
+
+      - name: Show the logs
+        if: failure()
+        run: docker compose -f deploy/compose.yaml logs --no-color
+
   python-audit:
     name: Python dependency audit
     runs-on: ubuntu-latest

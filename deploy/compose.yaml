@@ -1,0 +1,252 @@
+# The control plane (ADR 0031): `docker compose -f deploy/compose.yaml up --build`.
+# Workers run natively on their GPU machines; see deploy/README.md.
+name: vrp
+
+x-orchestrator-image: &orchestrator-image
+  image: vrp-orchestrator:local
+  build:
+    context: ..
+    dockerfile: deploy/Dockerfile
+    target: orchestrator
+
+services:
+  # Creates the CA, certificates, tokens and passwords, then exits.
+  setup:
+    <<: *orchestrator-image
+    user: root
+    command: ["python", "/app/deploy/admin.py", "init"]
+    environment:
+      VRP_HOST: ${VRP_HOST:-vrp.localhost}
+    volumes:
+      - secrets:/secrets
+
+  postgres:
+    image: postgres:18.7
+    restart: unless-stopped
+    depends_on:
+      setup:
+        condition: service_completed_successfully
+    environment:
+      POSTGRES_USER: vrp
+      POSTGRES_DB: vrp
+      POSTGRES_PASSWORD_FILE: /run/vrp/password
+    volumes:
+      - postgres:/var/lib/postgresql
+      - type: volume
+        source: secrets
+        target: /run/vrp
+        read_only: true
+        volume:
+          subpath: postgres
+    healthcheck:
+      test: ["CMD", "pg_isready", "-U", "vrp", "-d", "vrp"]
+      interval: 2s
+      timeout: 5s
+      retries: 30
+
+  seaweedfs:
+    image: chrislusf/seaweedfs:4.54
+    restart: unless-stopped
+    depends_on:
+      setup:
+        condition: service_completed_successfully
+    command:
+      - server
+      - -dir=/data
+      - -s3
+      - -s3.config=/run/vrp/s3.json
+      - -s3.port.https=8334
+      - -s3.cert.file=/run/vrp/server.pem
+      - -s3.key.file=/run/vrp/server.key
+      - -metricsPort=9327
+    ports:
+      - ${VRP_BIND:-127.0.0.1}:8334:8334
+    networks:
+      default:
+        # Presigned URLs name this host, from inside Compose too.
+        aliases:
+          - ${VRP_HOST:-vrp.localhost}
+    volumes:
+      - seaweedfs:/data
+      - type: volume
+        source: secrets
+        target: /run/vrp
+        read_only: true
+        volume:
+          subpath: store
+    healthcheck:
+      test: ["CMD", "nc", "-z", "127.0.0.1", "8333"]
+      interval: 2s
+      timeout: 5s
+      retries: 30
+
+  orchestrator:
+    <<: *orchestrator-image
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+      seaweedfs:
+        condition: service_healthy
+    ports:
+      - ${VRP_BIND:-127.0.0.1}:50051:50051
+    volumes:
+      - logs:/var/log/vrp
+      - type: volume
+        source: secrets
+        target: /run/vrp
+        read_only: true
+        volume:
+          subpath: orchestrator
+    healthcheck:
+      test:
+        - CMD
+        - python
+        - -c
+        - import urllib.request as u; u.urlopen('http://127.0.0.1:9100/metrics', timeout=3)
+      interval: 2s
+      timeout: 5s
+      retries: 30
+
+  prometheus:
+    image: prom/prometheus:v3.16.0
+    restart: unless-stopped
+    depends_on:
+      orchestrator:
+        condition: service_healthy
+    # No login, so reachable from this machine only.
+    ports:
+      - 127.0.0.1:9090:9090
+    extra_hosts:
+      - host.docker.internal:host-gateway
+    volumes:
+      - ./prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus:/prometheus
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://127.0.0.1:9090/-/ready"]
+      interval: 2s
+      timeout: 5s
+      retries: 30
+
+  postgres-exporter:
+    image: prometheuscommunity/postgres-exporter:v0.21.1
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      DATA_SOURCE_URI: postgres:5432/vrp?sslmode=disable
+      DATA_SOURCE_USER: vrp
+      DATA_SOURCE_PASS_FILE: /run/vrp/password
+    volumes:
+      - type: volume
+        source: secrets
+        target: /run/vrp
+        read_only: true
+        volume:
+          subpath: postgres
+
+  # Dumps the database every night; see deploy/README.md.
+  backup:
+    image: postgres:18.7
+    restart: unless-stopped
+    init: true  # so that its shell stops on SIGTERM
+    depends_on:
+      postgres:
+        condition: service_healthy
+    entrypoint: ["sh", "/backup.sh"]
+    command: ["loop"]
+    volumes:
+      - ./backup.sh:/backup.sh:ro
+      - ${VRP_BACKUP_DIR:-./backups}:/backups
+      - type: volume
+        source: secrets
+        target: /run/vrp
+        read_only: true
+        volume:
+          subpath: postgres
+
+  grafana:
+    image: grafana/grafana:13.2.6
+    restart: unless-stopped
+    depends_on:
+      prometheus:
+        condition: service_healthy
+    environment:
+      GF_SECURITY_ADMIN_PASSWORD__FILE: /run/vrp/password
+      GF_USERS_ALLOW_SIGN_UP: "false"
+      GF_AUTH_ANONYMOUS_ENABLED: "false"
+      GF_DASHBOARDS_DEFAULT_HOME_DASHBOARD_PATH: /etc/vrp/dashboards/vrp-overview.json
+      GF_ANALYTICS_REPORTING_ENABLED: "false"
+      GF_ANALYTICS_CHECK_FOR_UPDATES: "false"
+      GF_ANALYTICS_CHECK_FOR_PLUGIN_UPDATES: "false"
+      GF_NEWS_NEWS_FEED_ENABLED: "false"
+    ports:
+      - ${VRP_BIND:-127.0.0.1}:3000:3000
+    volumes:
+      - grafana:/var/lib/grafana
+      - ./grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./grafana/dashboards:/etc/vrp/dashboards:ro
+      - type: volume
+        source: secrets
+        target: /run/vrp
+        read_only: true
+        volume:
+          subpath: grafana
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://127.0.0.1:3000/api/health"]
+      interval: 2s
+      timeout: 5s
+      retries: 60
+
+  client:
+    image: vrp-client:local
+    build:
+      context: ..
+      dockerfile: deploy/Dockerfile
+      target: client
+    restart: unless-stopped
+    depends_on:
+      orchestrator:
+        condition: service_healthy
+    environment:
+      VRP_ORCHESTRATOR: orchestrator:50051
+      VRP_TOKEN_FILE: /run/vrp/token
+      VRP_CA_CERTIFICATE: /run/vrp/ca.pem
+    # No login, so reachable from this machine only.
+    ports:
+      - 127.0.0.1:8501:8501
+    volumes:
+      - type: volume
+        source: secrets
+        target: /run/vrp
+        read_only: true
+        volume:
+          subpath: client
+    healthcheck:
+      test:
+        - CMD
+        - python
+        - -c
+        - import urllib.request as u; u.urlopen('http://127.0.0.1:8501/_stcore/health', timeout=3)
+      interval: 2s
+      timeout: 5s
+      retries: 30
+
+  # `docker compose -f deploy/compose.yaml run --rm admin <command>`.
+  admin:
+    <<: *orchestrator-image
+    profiles: [tools]
+    user: root
+    entrypoint: ["python", "/app/deploy/admin.py"]
+    command: ["--help"]
+    volumes:
+      - secrets:/secrets
+
+volumes:
+  secrets:
+  postgres:
+  seaweedfs:
+  logs:
+  prometheus:
+  grafana:

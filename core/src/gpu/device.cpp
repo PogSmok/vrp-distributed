@@ -2,6 +2,7 @@
 
 #include <cuda_runtime.h>
 
+#include <array>
 #include <string>
 
 #include "device_buffer.cuh"
@@ -24,11 +25,17 @@ StatusOr<DeviceInfo> CurrentDeviceInfo() {
   int version = 0;
   VRP_RETURN_IF_ERROR(
       CudaStatus(cudaDriverGetVersion(&version), "cudaDriverGetVersion"));
+  std::array<char, 32> bus_id{};
+  VRP_RETURN_IF_ERROR(
+      CudaStatus(cudaDeviceGetPCIBusId(bus_id.data(),
+                                       static_cast<int>(bus_id.size()), device),
+                 "cudaDeviceGetPCIBusId"));
   return DeviceInfo{
       .name = static_cast<const char*>(properties.name),
       .memory_bytes = properties.totalGlobalMem,
       .driver = std::to_string(version / 1000) + "." +
                 std::to_string((version % 1000) / 10),
+      .pci_bus_id = bus_id.data(),
   };
 }
 

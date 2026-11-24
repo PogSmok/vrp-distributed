@@ -1,0 +1,14 @@
+# The images copy only what deploy/Dockerfile names.
+*
+!pyproject.toml
+!uv.lock
+!proto/
+!client/
+!orchestrator/
+!preprocessor/pyproject.toml
+!preprocessor/README.md
+!deploy/admin.py
+**/__pycache__/
+**/*_pb2.py
+**/*_pb2.pyi
+**/tests/

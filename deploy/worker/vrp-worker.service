@@ -1,0 +1,22 @@
+# systemd unit of a Linux worker (ADR 0019, 0024): see deploy/README.md.
+[Unit]
+Description=VRP GPU worker
+Wants=network-online.target
+After=network-online.target
+
+[Service]
+User=vrp
+SupplementaryGroups=video
+WorkingDirectory=/opt/vrp-worker
+ExecStart=/opt/vrp-worker/vrp-worker --config /opt/vrp-worker/worker.json
+# Exits with an error after a stall, a lost GPU or out of memory.
+Restart=on-failure
+RestartSec=5
+TimeoutStopSec=15
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/opt/vrp-worker
+
+[Install]
+WantedBy=multi-user.target

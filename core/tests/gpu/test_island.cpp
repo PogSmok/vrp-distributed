@@ -12,6 +12,7 @@
 #include <vector>
 
 #include "test_problems.hpp"
+#include "vrp/core/gpu/device_matrix.hpp"
 #include "vrp/core/solution.hpp"
 #include "vrp/core/solver/evaluation.hpp"
 #include "vrp/core/status.hpp"
@@ -77,7 +78,8 @@ const solver::Individual& BestOf(const Island& island) {
 TEST(IslandTest, FindsTheOptimumOfSmallProblems) {
   for (std::uint32_t seed = 0; seed < 5; ++seed) {
     const Cvrp cvrp = MakeRandomCvrp(7, seed);
-    Island island = Island::Create(cvrp.matrix, cvrp.problem, {}, seed).Value();
+    const DeviceMatrix matrix = DeviceMatrix::Create(cvrp.matrix).Value();
+    Island island = Island::Create(matrix, cvrp.problem, {}, seed).Value();
     for (int step = 0; step < 50; ++step) {
       ASSERT_TRUE(island.Step().IsOk());
     }
@@ -91,13 +93,14 @@ TEST(IslandTest, FindsTheOptimumOfSmallProblems) {
 
 TEST(IslandTest, ImportsValidMigrantsOnly) {
   const Cvrp cvrp = MakeRandomCvrp(30, /*seed=*/1);
-  Island source = Island::Create(cvrp.matrix, cvrp.problem, {}, 0).Value();
+  const DeviceMatrix matrix = DeviceMatrix::Create(cvrp.matrix).Value();
+  Island source = Island::Create(matrix, cvrp.problem, {}, 0).Value();
   for (int step = 0; step < 5; ++step) {
     ASSERT_TRUE(source.Step().IsOk());
   }
   const Solution migrant = {.routes = BestOf(source).routes};
 
-  Island island = Island::Create(cvrp.matrix, cvrp.problem, {}, 1).Value();
+  Island island = Island::Create(matrix, cvrp.problem, {}, 1).Value();
   ASSERT_TRUE(island.Import(migrant).IsOk());
   EXPECT_EQ(BestOf(island).routes, migrant.routes);
 

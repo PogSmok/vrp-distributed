@@ -1,6 +1,7 @@
 #ifndef VRP_WORKER_TELEMETRY_HPP_
 #define VRP_WORKER_TELEMETRY_HPP_
 
+#include <prometheus/collectable.h>
 #include <prometheus/counter.h>
 #include <prometheus/exposer.h>
 #include <prometheus/family.h>
@@ -69,6 +70,9 @@ class Metrics {
 
   void CountTask(const std::string& kind, const std::string& outcome);
 
+  // Adds the use of the GPU at `pci_bus_id`. False if NVML is unavailable.
+  bool WatchGpu(const std::string& pci_bus_id);
+
   prometheus::Gauge& connected;
   prometheus::Gauge& seconds_since_progress;
   prometheus::Histogram& step_seconds;  // ADR 0024's limit on a step
@@ -76,8 +80,10 @@ class Metrics {
   prometheus::Counter& bytes_uploaded;
   prometheus::Counter& migrants_sent;
   prometheus::Counter& migrants_imported;
+  prometheus::Histogram& migration_seconds;
 
  private:
+  std::shared_ptr<prometheus::Collectable> gpu_;
   prometheus::Exposer exposer_;
 };
 

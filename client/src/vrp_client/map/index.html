@@ -1,0 +1,56 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>VRP live map</title>
+  <link rel="stylesheet" crossorigin="anonymous"
+        href="https://cdn.jsdelivr.net/npm/maplibre-gl@5.24.1/dist/maplibre-gl.css"
+        integrity="sha384-uTttxo/aOKbdE5RlD/SPzSDoDmNvGlUYPjONi2MN/b7c9HPSvW07OIuyP7uL6jxK">
+  <link rel="stylesheet" href="map.css">
+</head>
+<body>
+  <div id="map"></div>
+
+  <ol id="phases" class="panel" aria-label="Job phases"></ol>
+
+  <aside id="side">
+    <section id="score" class="panel">
+      <p class="label" id="score-label">Best plan</p>
+      <p id="cost">—</p>
+      <p id="gain"></p>
+      <dl id="stats"></dl>
+    </section>
+    <section id="islands" class="panel" hidden>
+      <p class="label" id="islands-label">Islands searching</p>
+      <ul id="island-list"></ul>
+    </section>
+  </aside>
+
+  <section id="timeline" class="panel" hidden>
+    <div class="timeline-head">
+      <p class="label" id="timeline-label">Convergence</p>
+      <div id="toggles" role="group" aria-label="Map layers">
+        <button data-layer="best" aria-pressed="true">Best plan</button>
+        <button data-layer="trails" aria-pressed="true">Older plans</button>
+        <button id="live" hidden>Back to live</button>
+      </div>
+    </div>
+    <canvas id="chart" aria-label="Best cost over time; drag to replay the search"></canvas>
+  </section>
+
+  <div id="notice" class="panel" role="status" hidden></div>
+  <div id="empty" class="panel">
+    <h1>Watch the fleet find its routes</h1>
+    <p>Choose a road graph and a problem file in the sidebar, then start solving.</p>
+  </div>
+
+  <script crossorigin="anonymous"
+          src="https://cdn.jsdelivr.net/npm/maplibre-gl@5.24.1/dist/maplibre-gl.js"
+          integrity="sha384-nXMl9YiLoSG5KBPTFgvxVuIqQQcqIvo0bFrvoEaGJC6r7IibIzF1S36Zbf/sKBtL"></script>
+  <script crossorigin="anonymous"
+          src="https://cdn.jsdelivr.net/npm/deck.gl@9.4.1/dist.min.js"
+          integrity="sha384-MgmfghaFhzRlOya+lTLbCWa1NESjFsHp55UTFgT7doYqkH8cvOGK/V8+5SyeryGb"></script>
+  <script src="map.js"></script>
+</body>
+</html>

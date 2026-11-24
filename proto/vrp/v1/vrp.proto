@@ -110,6 +110,32 @@ message GetProgressRequest {
   string job_id = 1;
   // How many convergence points the client has; only newer ones are sent.
   uint32 known_points = 2;
+  // The cost of the road plan the client has; 0 if none. Only a better one
+  // is sent.
+  uint64 known_plan_cost = 3;
+}
+
+message IslandCost {
+  uint32 island = 1;
+  uint64 cost = 2;
+}
+
+// One vehicle's route along the roads, for the live map. Points are in 1e-7
+// degrees, each as its difference from the point before.
+message RoadRoute {
+  repeated sint32 latitudes = 1;
+  repeated sint32 longitudes = 2;
+  repeated uint32 stops = 3;
+  uint64 cost = 4;
+}
+
+// A best plan on the roads, routed during the search (ADR 0030). `attempt`
+// and `island` name the island that found it.
+message RoadPlan {
+  Attempt attempt = 1;
+  uint32 island = 2;
+  uint64 cost = 3;
+  repeated RoadRoute routes = 4;
 }
 
 // The result artifact (docs/formats/result.md, ADR 0016).
@@ -125,6 +151,10 @@ message GetProgressResponse {
   optional uint64 best_cost = 3;
   string failure = 4;  // why a FAILED job failed
   Result result = 5;   // set once the job is DONE
+  repeated IslandCost islands = 6;  // each island's best so far
+  RoadPlan road_plan = 7;           // if better than `known_plan_cost`
+  EdgeCost edge_cost = 8;           // what the costs measure
+  uint32 connected_workers = 9;     // with none, the job waits
 }
 
 // A graph version of the catalogue (ADR 0015).
@@ -284,6 +314,7 @@ message WorkerMessage {
     Migrant migrant = 7;
     MigrantRequest migrant_request = 8;
     LogBatch logs = 9;
+    RoadPlan road_plan = 10;
   }
 }
 
@@ -337,6 +368,8 @@ message SolveTask {
   // The best solutions saved before a restart, to seed the islands with
   // (ADR 0014).
   repeated Solution seeds = 4;
+  // The node each stop snapped to, for routing plans on the roads (ADR 0030).
+  repeated uint32 stop_nodes = 5;
 }
 
 message WorkerBuild {

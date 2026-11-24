@@ -34,8 +34,10 @@ protobuf_generate(
 
 add_library(vrp_worker STATIC
     src/config.cpp
+    src/gpu_monitor.cpp
     src/graph_cache.cpp
     src/hashing.cpp
+    src/plan_router.cpp
     src/session_client.cpp
     src/session_state.cpp
     src/task_runner.cpp
@@ -57,6 +59,7 @@ target_link_libraries(vrp_worker
         CURL::libcurl
         OpenSSL::Crypto
         nlohmann_json::nlohmann_json
+        ${CMAKE_DL_LIBS}  # loads NVML at run time
 )
 # curl.h includes windows.h, whose `min` and `max` macros break gRPC's headers.
 target_compile_definitions(vrp_worker PUBLIC
@@ -83,6 +86,7 @@ if(VRP_BUILD_TESTS)
 
     add_executable(vrp_worker_tests
         tests/test_graph_cache.cpp
+        tests/test_plan_router.cpp
         tests/test_session_state.cpp
         tests/test_threaded_for.cpp
     )

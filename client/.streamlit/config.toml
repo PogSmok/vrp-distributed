@@ -1,0 +1,22 @@
+[browser]
+gatherUsageStats = false
+# Set, so that Streamlit does not ask a web service for this machine's IP.
+serverAddress = "localhost"
+
+[client]
+toolbarMode = "minimal"
+
+# No `base`: the app follows the viewer's system theme.
+[theme.dark]
+primaryColor = "#22e6ff"
+backgroundColor = "#070a12"
+secondaryBackgroundColor = "#0e1320"
+textColor = "#e7ecf7"
+borderColor = "#222b3f"
+
+[theme.light]
+primaryColor = "#0b62d6"
+backgroundColor = "#f6f8fc"
+secondaryBackgroundColor = "#ffffff"
+textColor = "#141a2a"
+borderColor = "#dbe2ee"

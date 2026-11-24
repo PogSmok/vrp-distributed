@@ -59,6 +59,9 @@ coverage-html/
 *.osm.pbf
 data/
 
+# --- Database backups ---
+deploy/backups/
+
 # --- Secrets ---
 .env
 .env.*

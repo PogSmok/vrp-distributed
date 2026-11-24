@@ -18,6 +18,7 @@ struct DeviceInfo {
   std::string name;
   std::uint64_t memory_bytes = 0;
   std::string driver;  // the newest CUDA version it supports, such as "12.9"
+  std::string pci_bus_id;  // identifies it to other tools, such as NVML
 };
 
 // The current GPU. Fails with kInternal or kDeviceLost if a CUDA call fails.

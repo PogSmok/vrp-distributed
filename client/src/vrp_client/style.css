@@ -1,0 +1,16 @@
+[data-testid="stHeader"] {
+  background: transparent;
+  height: 0;
+}
+
+[data-testid="stSidebar"] [data-testid="stBaseButton-primary"],
+[data-testid="stSidebar"] [data-testid="stBaseButton-primary"] p,
+[data-testid="stMain"] [data-testid="stBaseButton-primary"],
+[data-testid="stMain"] [data-testid="stBaseButton-primary"] p {
+  color: var(--vrp-ink) !important;
+  font-weight: 650;
+}
+
+footer {
+  display: none;
+}

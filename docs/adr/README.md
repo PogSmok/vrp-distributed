@@ -52,19 +52,22 @@ are never reused; present tense.
 | 0011 | [Work split across GPUs: full graph per worker, two-phase pipeline](0011-work-split-across-gpus.md)                        | Accepted                           |
 | 0012 | [No separate API layer; orchestrator exposes the client interface](0012-no-separate-api-layer.md)                          | Accepted                           |
 | 0013 | [Job and task model with group scheduling](0013-job-and-task-model-with-group-scheduling.md)                               | Accepted                           |
-| 0014 | [Failure and recovery model](0014-failure-and-recovery-model.md)                                                           | Accepted                           |
+| 0014 | [Failure and recovery model](0014-failure-and-recovery-model.md)                                                           | Accepted; bounded by 0032          |
 | 0015 | [Graph versioning and catalogue](0015-graph-versioning-and-catalogue.md)                                                   | Accepted                           |
 | 0016 | [Result storage and retrieval](0016-result-storage-and-retrieval.md)                                                       | Accepted                           |
 | 0017 | [GPU distance algorithm: batched frontier Bellman-Ford on the plain graph](0017-gpu-distance-algorithm.md)                 | Accepted                           |
 | 0018 | [Solver algorithm: memetic search on giant tours, local search on the GPU](0018-solver-algorithm.md)                       | Accepted                           |
-| 0019 | [Deployment: third-party services in Docker Compose, our programs native](0019-deployment-topology-and-build-platforms.md) | Accepted; MinIO superseded by 0029 |
+| 0019 | [Deployment: third-party services in Docker Compose, our programs native](0019-deployment-topology-and-build-platforms.md) | Accepted; see 0029, 0031           |
 | 0020 | [Edge cost: road length and travel time stored, chosen per job](0020-edge-cost-length-and-travel-time.md)                  | Accepted                           |
 | 0021 | [Orchestrator core: single-threaded, event-driven scheduler](0021-orchestrator-scheduler-as-single-threaded-event-loop.md) | Accepted                           |
 | 0022 | [Persist state transitions before sending messages](0022-persist-state-transitions-before-sending.md)                      | Accepted                           |
 | 0023 | [GPU algorithms in a standalone core library](0023-gpu-algorithms-in-standalone-core-library.md)                           | Accepted                           |
-| 0024 | [Worker: separate session and compute threads, short GPU steps](0024-worker-separates-session-and-compute-threads.md)      | Accepted                           |
+| 0024 | [Worker: separate session and compute threads, short GPU steps](0024-worker-separates-session-and-compute-threads.md)      | Accepted; extended by 0032         |
 | 0025 | [Route geometry: legs re-routed on the CPU in FINALIZE](0025-route-geometry-by-cpu-leg-routing.md)                         | Accepted                           |
 | 0026 | [Orchestrator implementation language: Python (asyncio)](0026-orchestrator-implementation-language.md)                     | Accepted                           |
 | 0027 | [Graph file format: custom little-endian binary with a JSON manifest](0027-graph-file-format.md)                           | Accepted                           |
 | 0028 | [Result artifact format: JSON, polylines in degrees](0028-result-artifact-format.md)                                       | Accepted                           |
 | 0029 | [Object store: SeaweedFS instead of MinIO](0029-object-store-seaweedfs.md)                                                 | Accepted                           |
+| 0030 | [Live map: workers route each new best plan on the roads](0030-live-map-from-island-bests.md)                              | Accepted                           |
+| 0031 | [The orchestrator and the client run in Docker Compose](0031-orchestrator-and-client-in-compose.md)                        | Accepted                           |
+| 0032 | [Bounded store retries; a lost GPU restarts its worker](0032-bounded-store-retries-and-lost-gpu-restart.md)                | Accepted                           |

@@ -58,8 +58,8 @@ A job fails with a reason, which polls show:
 - `<kind> task <index> failed 3 times, last: <reason>`;
 - `<kind> task <index>: <reason>`: a worker reported a failure that retrying
   cannot help, such as a stored matrix chunk that fails its SHA-256 (ADR 0014);
-- `the problem needs more GPU memory than any worker has`: when the solve
-  group's wait ended, no connected worker could fit it;
+- `the problem needs more GPU memory than any worker has`: 60 s into
+  DISTANCE or SOLVE, no connected worker could fit that phase's tasks;
 - `every solve task failed: <reason>`: no island has a solution because
   their tasks failed, as with a GPU out of memory;
 - `no feasible solution found`: the islands ran, and none found one
@@ -77,8 +77,8 @@ sequenceDiagram
     C->>O: SubmitJob(problem, graph_version, parameters)
     O-->>C: job_id
     loop about once a second
-        C->>O: GetProgress(job_id, known_points)
-        O-->>C: phase, new points, best cost
+        C->>O: GetProgress(job_id, known_points, known_plan_cost)
+        O-->>C: phase, new points, best costs, road plan
     end
     O-->>C: phase DONE, result URL and SHA-256
     C->>S: GET result URL
@@ -101,8 +101,11 @@ sequenceDiagram
 Cancelling a job that has ended does nothing.
 
 A poll answers with the points from `known_points` on, so a client sends
-how many it has. The result URL is presigned and short-lived; poll again for
-a fresh one. The client checks the downloaded file against the SHA-256.
+how many it has. It also carries how many workers are connected, each
+island's best cost, and the job's best plan on the roads if it beats
+`known_plan_cost` (ADR 0030). The result URL is presigned and short-lived;
+poll again for a fresh one. The client checks the downloaded file against
+the SHA-256.
 
 ## Admin calls
 
@@ -226,6 +229,9 @@ sequenceDiagram
   island. A `MigrantRequest` is answered, when another island has one, with
   a `Migrant` addressed to the island that asked. A receiving island checks
   a migrant before using it (ADR 0004).
+- **Road plans.** A worker routes its latest best plan on the roads at low
+  priority and sends it as a `RoadPlan`. Plans are for the live map: they are
+  not persisted, confirmed or resent (ADR 0030).
 - **Losing islands.** If every island is lost while time remains, the solve
   phase starts again once, seeded with the solutions saved so far
   (ADR 0014).

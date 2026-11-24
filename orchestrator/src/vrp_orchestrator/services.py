@@ -157,9 +157,15 @@ class Services:
         self, request: vrp_pb2.GetProgressRequest, context: _Context
     ) -> Message:
         caller = CALLER.get()
-        return await self._ask(
-            lambda r: GetProgress(caller, request, r), context
+        response = cast(
+            "vrp_pb2.GetProgressResponse",
+            await self._ask(lambda r: GetProgress(caller, request, r), context),
         )
+        # After `_ask`, which refuses a job that is not the caller's.
+        plan = self._pool.plan(request.job_id, request.known_plan_cost)
+        if plan is not None:
+            response.road_plan.CopyFrom(plan)
+        return response
 
     async def _register_graph(
         self, request: vrp_pb2.RegisterGraphRequest, context: _Context
@@ -229,6 +235,8 @@ class Services:
                     if migrant is not None:
                         reply = vrp_pb2.OrchestratorMessage(migrant=migrant)
                         self._registry.send(worker, reply)
+                elif kind == "road_plan":
+                    self._pool.push_plan(message.road_plan)
                 elif kind == "logs":
                     worker_lines(worker, message.logs.lines)
         finally:

@@ -122,6 +122,8 @@ std::optional<v1::WorkerMessage> SessionState::FromCompute(
       return if_running(message.migrant().attempt());
     case v1::WorkerMessage::kMigrantRequest:
       return if_running(message.migrant_request().attempt());
+    case v1::WorkerMessage::kRoadPlan:
+      return if_running(message.road_plan().attempt());
     default:
       return std::nullopt;
   }

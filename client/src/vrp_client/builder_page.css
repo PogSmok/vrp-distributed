@@ -1,0 +1,12 @@
+[data-testid="stMainBlockContainer"] {
+  padding: 2rem 2.5rem;
+  max-width: none;
+}
+
+[data-testid="stMain"] iframe {
+  display: block;
+  width: 100%;
+  height: min(60dvh, 620px) !important;
+  border: 0;
+  border-radius: 14px;
+}
