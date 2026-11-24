@@ -54,7 +54,7 @@ plans, more slowly.
 
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="images/island-dark.svg">
-  <img alt="Select, order crossover and Split run on the CPU; local search finds moves on the GPU and applies them on the CPU, for a batch of 8 children; survivors are kept by cost and diversity; every 2 seconds the island exchanges a migrant with the pool" src="images/island-light.svg">
+  <img alt="Select, order crossover and Split run on the CPU; local search finds moves in parallel, on the GPU or on CPU threads, for a batch of 8 children; survivors are kept by cost and diversity; every 2 seconds the island exchanges a migrant with the pool" src="images/island-light.svg">
 </picture>
 
 1. **Start.** The first 100 children are random giant tours.

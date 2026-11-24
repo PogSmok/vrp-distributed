@@ -1,6 +1,6 @@
 # systemd unit of a Linux worker (ADR 0019, 0024): see deploy/README.md.
 [Unit]
-Description=VRP GPU worker
+Description=VRP worker
 Wants=network-online.target
 After=network-online.target
 

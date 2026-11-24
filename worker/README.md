@@ -97,6 +97,10 @@ Known limits, to change when they matter:
 
 ## Build and test
 
+Each release has the worker built for Linux and Windows, with CUDA and for
+the CPU (ADR 0040; `deploy/README.md`), so building is only needed for
+development.
+
 The worker needs CUDA (see `core/README.md`), except on the CPU, and
 [vcpkg](https://vcpkg.io), which builds gRPC, Protobuf, libcurl, OpenSSL and
 prometheus-cpp at the baseline pinned in `vcpkg.json`, in release mode only.

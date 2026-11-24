@@ -16,6 +16,8 @@ from vrp_client import vrp_pb2
 _CALL_SECONDS: Final = 10.0
 _DOWNLOAD_SECONDS: Final = 60.0
 _POLL_GAP_SECONDS: Final = 0.6  # the orchestrator refuses polls under 0.5 s
+# A poll's road plan (ADR 0030) can exceed gRPC's 4 MB default.
+_MAX_MESSAGE_BYTES: Final = 16 << 20
 
 
 def rpc_status(error: grpc.RpcError) -> tuple[grpc.StatusCode, str]:
@@ -51,11 +53,12 @@ class Orchestrator:
         self._ssl: ssl.SSLContext | None = None
         self._poll_lock = threading.Lock()
         self._next_poll = 0.0
+        options = [("grpc.max_receive_message_length", _MAX_MESSAGE_BYTES)]
         if ca is None:
-            self._channel = grpc.insecure_channel(target)
+            self._channel = grpc.insecure_channel(target, options)
         else:
             credentials = grpc.ssl_channel_credentials(ca.read_bytes())
-            self._channel = grpc.secure_channel(target, credentials)
+            self._channel = grpc.secure_channel(target, credentials, options)
             self._ssl = ssl.create_default_context(cafile=ca)
 
     @classmethod

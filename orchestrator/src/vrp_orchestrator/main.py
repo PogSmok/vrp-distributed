@@ -44,6 +44,7 @@ _EXPIRY_SECONDS: Final = 24 * 3600
 _GAUGE_SECONDS: Final = 5.0
 _STOP_SECONDS: Final = 5.0
 _MIN_PING_MS: Final = 5000
+_MAX_MESSAGE_BYTES: Final = 16 << 20  # as the client accepts
 
 
 def main(argv: Sequence[str] | None = None) -> int:
@@ -147,7 +148,9 @@ def _grpc_server(config: Config, services: Services) -> grpc.aio.Server:
         # Workers ping an otherwise quiet stream to notice a lost connection
         # within a lease; by default, gRPC would close it for doing so.
         options=[
-            ("grpc.http2.min_ping_interval_without_data_ms", _MIN_PING_MS)
+            ("grpc.http2.min_ping_interval_without_data_ms", _MIN_PING_MS),
+            # A worker's road plan (ADR 0030) can exceed gRPC's 4 MB default.
+            ("grpc.max_receive_message_length", _MAX_MESSAGE_BYTES),
         ],
     )
     server.add_generic_rpc_handlers(services.handlers())

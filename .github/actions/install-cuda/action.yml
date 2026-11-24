@@ -1,12 +1,14 @@
 name: Install CUDA
 description: >
-  Installs the CUDA 12.9 compiler and Ninja on ubuntu-24.04, the release the
-  NVIDIA repository below is for.
+  Installs the CUDA 12.9 compiler: with Ninja on ubuntu-24.04, the release the
+  NVIDIA repository below is for, or on Windows from NVIDIA's network
+  installer, pinned by its SHA-256.
 
 runs:
   using: composite
   steps:
     - name: Install CUDA toolkit
+      if: runner.os == 'Linux'
       shell: bash
       run: |
         wget -q https://developer.download.nvidia.com/compute/cuda/repos/ubuntu2404/x86_64/cuda-keyring_1.1-1_all.deb
@@ -16,3 +18,23 @@ runs:
         sudo apt-get install -y --no-install-recommends \
           cuda-nvcc-12-9 cuda-cudart-dev-12-9 cuda-cccl-12-9 ninja-build
         echo /usr/local/cuda-12.9/bin >> "$GITHUB_PATH"
+
+    # thrust_12.9 holds CCCL, whose libcu++ has <cuda/atomic>. Ninja comes
+    # with Visual Studio's developer environment.
+    - name: Install CUDA toolkit
+      if: runner.os == 'Windows'
+      shell: pwsh
+      run: |
+        $installer = "$env:RUNNER_TEMP\cuda-12.9.1.exe"
+        Invoke-WebRequest -OutFile $installer -Uri `
+          https://developer.download.nvidia.com/compute/cuda/12.9.1/network_installers/cuda_12.9.1_windows_network.exe
+        $sha256 = 'de45c336ab4e9825018b546357dc9de5ded9f89c4f5200ef52b8eeac3b1b4072'
+        if ((Get-FileHash $installer -Algorithm SHA256).Hash -ne $sha256) {
+          throw "the CUDA installer is not the one pinned here"
+        }
+        $process = Start-Process $installer -Wait -PassThru -ArgumentList `
+          '-s', 'nvcc_12.9', 'cudart_12.9', 'thrust_12.9', '-n'
+        if ($process.ExitCode -ne 0) { throw "the CUDA installer exited with $($process.ExitCode)" }
+        $cuda = "$env:ProgramFiles\NVIDIA GPU Computing Toolkit\CUDA\v12.9"
+        "CUDA_PATH=$cuda" >> $env:GITHUB_ENV
+        "$cuda\bin" >> $env:GITHUB_PATH

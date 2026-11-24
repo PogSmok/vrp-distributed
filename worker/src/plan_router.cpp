@@ -34,8 +34,9 @@ namespace {
 
 constexpr double kUnitsPerDegree = 1e7;
 constexpr std::int32_t kMinStep = 400;  // about 4 m
-// Below gRPC's default 4 MB message limit, with room for the rest of a poll.
-constexpr std::size_t kMaxPlanBytes = 3'000'000;
+// Under the 16 MiB that the orchestrator and client accept, with room for the
+// rest of a poll. 5,000 customers on Mazowieckie take about 6.5 MB.
+constexpr std::size_t kMaxPlanBytes = 15'000'000;
 constexpr std::chrono::milliseconds kStopPoll{50};
 
 // The search must keep the CPU whenever it wants it.

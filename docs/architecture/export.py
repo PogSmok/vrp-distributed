@@ -92,15 +92,13 @@ def _clean(text: str) -> str:
     text = re.sub(
         r"<div style='font-weight: bold'>(.*?)</div>", r"<b>\1</b>", text
     )
+    # One font size: Mermaid sizes a box by measuring its label, and a viewer
+    # that draws `<small>` larger than measured clips the box's last line.
+    text = re.sub(r"<div style='font-size: [78]0%[^']*'></div>", "", text)
     text = re.sub(
-        r"<div style='font-size: 70%[^']*'>(.*?)</div>",
-        r"<br/><small>\1</small>",
-        text,
+        r"<div style='font-size: [78]0%[^']*'>(.*?)</div>", r"<br/>\1", text
     )
-    text = re.sub(
-        r"<div style='font-size: 80%[^']*'>(.*?)</div>", r"<br/>\1", text
-    )
-    text = text.replace("<div></div>", "").replace("<br/><small></small>", "")
+    text = text.replace("<div></div>", "")
     text = re.sub(r"<div>(.*?)</div>", r"\1", text).replace('-. "" .->', "-.->")
     if "<div" in text or "style=" in text:
         msg = "unexpected Mermaid export: check the Structurizr version"
