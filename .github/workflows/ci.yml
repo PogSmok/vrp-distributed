@@ -427,8 +427,10 @@ jobs:
           compose run --rm -T admin ca > "$dir/ca.pem"
           chmod +x "$dir/vrp-worker"
           "$dir/vrp-worker" --config "$dir/worker.json" &
-          VRP_TOKEN=$(compose run --rm -T admin client ci) \
-          VRP_ORCHESTRATOR=localhost:50051 VRP_CA_CERTIFICATE="$dir/ca.pem" \
+          # Token names are unique across roles. Assigned on its own, so that
+          # a refusal ends the step here.
+          token=$(compose run --rm -T admin client ci-client)
+          VRP_TOKEN="$token" VRP_ORCHESTRATOR=localhost:50051 VRP_CA_CERTIFICATE="$dir/ca.pem" \
             uv run --locked --package vrp-client python bench/jobs.py \
             --graph-version "$(jq -r .graph_version "$RUNNER_TEMP/grid/manifest.json")" \
             --problem "$RUNNER_TEMP/problem.json" --seconds 5 --out "$RUNNER_TEMP/jobs.jsonl"
