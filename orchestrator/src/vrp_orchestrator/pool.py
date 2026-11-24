@@ -2,8 +2,9 @@
 
 The Scheduler says which islands a job has, and which attempt runs each,
 through `SetPool`; the Worker API pushes and pulls migrants here directly,
-bypassing the Scheduler's queue (ADR 0021). Nothing is persisted: the pool
-starts empty after a restart (ADR 0014).
+bypassing the Scheduler's queue (ADR 0021). It also holds each job's best
+plan on the roads, for the live map (ADR 0030). Nothing is persisted: the
+pool starts empty after a restart (ADR 0014).
 """
 
 import random
@@ -27,6 +28,7 @@ class MigrantPool:
         self._rng = rng
         self._owners: dict[str, dict[int, Owner]] = {}
         self._migrants: dict[str, dict[int, vrp_pb2.Solution]] = {}
+        self._plans: dict[str, vrp_pb2.RoadPlan] = {}
 
     def set(self, job_id: str, islands: Mapping[int, Owner]) -> None:
         """Replaces a job's islands; none closes its pool.
@@ -38,6 +40,7 @@ class MigrantPool:
         if not islands:
             self._owners.pop(job_id, None)
             self._migrants.pop(job_id, None)
+            self._plans.pop(job_id, None)
             return
         self._owners[job_id] = dict(islands)
         kept = self._migrants.get(job_id, {})
@@ -88,6 +91,34 @@ class MigrantPool:
             island=request.island,
             solution=self._migrants[job_id][source],
         )
+
+    def push_plan(self, plan: vrp_pb2.RoadPlan) -> None:
+        """Keeps a plan from the attempt running its island, if it is better.
+
+        Args:
+            plan: From a worker.
+        """
+        job_id = self._job(plan.attempt, plan.island)
+        if job_id is None:
+            return
+        kept = self._plans.get(job_id)
+        if kept is None or plan.cost < kept.cost:
+            self._plans[job_id] = plan
+
+    def plan(self, job_id: str, known_cost: int) -> vrp_pb2.RoadPlan | None:
+        """The job's best road plan, if the client lacks it.
+
+        Args:
+            job_id: The job.
+            known_cost: The cost of the plan the client has; 0 if none.
+
+        Returns:
+            The plan, or None if there is none better than what it has.
+        """
+        plan = self._plans.get(job_id)
+        if plan is None or (known_cost and plan.cost >= known_cost):
+            return None
+        return plan
 
     def _job(self, attempt: vrp_pb2.Attempt, island: int) -> str | None:
         """The job whose `island` this attempt runs, if any."""

@@ -7,6 +7,7 @@
 #include <vector>
 
 #include "vrp/core/distance_matrix.hpp"
+#include "vrp/core/gpu/device_matrix.hpp"
 #include "vrp/core/gpu/local_search.hpp"
 #include "vrp/core/solution.hpp"
 #include "vrp/core/solver/evaluation.hpp"
@@ -43,12 +44,12 @@ class Island {
   // ValidateProblem rejects the problem, the matrix has another number of
   // stops, or a parameter is out of range, and with kInternal or kDeviceLost
   // if a CUDA call fails.
-  static StatusOr<Island> Create(const DistanceMatrix& matrix,
+  static StatusOr<Island> Create(const DeviceMatrix& matrix,
                                  const Problem& problem,
                                  const IslandParameters& parameters,
                                  std::uint32_t seed);
   // A temporary matrix would be freed while the island still uses it.
-  static StatusOr<Island> Create(DistanceMatrix&&, const Problem&,
+  static StatusOr<Island> Create(DeviceMatrix&&, const Problem&,
                                  const IslandParameters&,
                                  std::uint32_t) = delete;
 

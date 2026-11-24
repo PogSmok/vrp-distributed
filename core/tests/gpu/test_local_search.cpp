@@ -12,6 +12,7 @@
 #include <vector>
 
 #include "test_problems.hpp"
+#include "vrp/core/gpu/device_matrix.hpp"
 #include "vrp/core/solution.hpp"
 #include "vrp/core/solver/evaluation.hpp"
 #include "vrp/core/solver/split.hpp"
@@ -146,10 +147,10 @@ void ExpectLocalOptimum(const Cvrp& cvrp, std::vector<Route> routes,
 TEST(LocalSearchTest, StopsOnlyWhereNoMoveImproves) {
   for (const std::size_t customers : {8U, 25U}) {
     const Cvrp cvrp = MakeRandomCvrp(customers, /*seed=*/9);
+    const DeviceMatrix matrix = DeviceMatrix::Create(cvrp.matrix).Value();
     // Every customer is a neighbour, as the oracle assumes.
     LocalSearch search =
-        LocalSearch::Create(cvrp.matrix, cvrp.problem, customers, kBatch)
-            .Value();
+        LocalSearch::Create(matrix, cvrp.problem, customers, kBatch).Value();
     for (const double penalty : {0.5, 100.0}) {
       std::vector<std::vector<Route>> solutions =
           StartingSolutions(cvrp, penalty);
@@ -167,9 +168,9 @@ TEST(LocalSearchTest, StopsOnlyWhereNoMoveImproves) {
 TEST(LocalSearchTest, PredictsTheCostOfEveryMoveAndConverges) {
   for (const std::size_t customers : {1U, 2U, 15U, 150U}) {
     const Cvrp cvrp = MakeRandomCvrp(customers, /*seed=*/3);
+    const DeviceMatrix matrix = DeviceMatrix::Create(cvrp.matrix).Value();
     LocalSearch search =
-        LocalSearch::Create(cvrp.matrix, cvrp.problem, kNeighbors, kBatch)
-            .Value();
+        LocalSearch::Create(matrix, cvrp.problem, kNeighbors, kBatch).Value();
     for (const double penalty : {0.5, 100.0}) {
       std::vector<std::vector<Route>> solutions =
           StartingSolutions(cvrp, penalty);
@@ -200,9 +201,9 @@ TEST(LocalSearchTest, PredictsTheCostOfEveryMoveAndConverges) {
 // Solutions of a batch must not affect each other.
 TEST(LocalSearchTest, ImprovesABatchAsItImprovesEachAlone) {
   const Cvrp cvrp = MakeRandomCvrp(80, /*seed=*/5);
+  const DeviceMatrix matrix = DeviceMatrix::Create(cvrp.matrix).Value();
   LocalSearch search =
-      LocalSearch::Create(cvrp.matrix, cvrp.problem, kNeighbors, kBatch)
-          .Value();
+      LocalSearch::Create(matrix, cvrp.problem, kNeighbors, kBatch).Value();
   std::vector<std::vector<Route>> batch = StartingSolutions(cvrp, 10.0);
   std::vector<std::vector<Route>> alone = batch;
   ASSERT_TRUE(search.Improve(batch, 10.0).IsOk());

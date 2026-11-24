@@ -1,0 +1,9 @@
+apiVersion: 1
+
+providers:
+  - name: VRP
+    folder: VRP
+    type: file
+    allowUiUpdates: false
+    options:
+      path: /etc/vrp/dashboards

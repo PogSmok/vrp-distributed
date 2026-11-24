@@ -9,6 +9,7 @@
 #include <vector>
 
 #include "vrp/core/distance_matrix.hpp"
+#include "vrp/core/gpu/device_matrix.hpp"
 #include "vrp/core/gpu/local_search.hpp"
 #include "vrp/core/solution.hpp"
 #include "vrp/core/solver/crossover.hpp"
@@ -70,7 +71,7 @@ std::vector<SolverParameter> NamedParameters(
   };
 }
 
-StatusOr<Island> Island::Create(const DistanceMatrix& matrix,
+StatusOr<Island> Island::Create(const DeviceMatrix& matrix,
                                 const Problem& problem,
                                 const IslandParameters& parameters,
                                 std::uint32_t seed) {
@@ -85,8 +86,8 @@ StatusOr<Island> Island::Create(const DistanceMatrix& matrix,
       LocalSearch search,
       LocalSearch::Create(matrix, problem, parameters.neighbor_count,
                           parameters.batch_size));
-  return Island(matrix, problem, parameters, seed, std::move(search),
-                InitialPenalty(matrix, problem));
+  return Island(matrix.Host(), problem, parameters, seed, std::move(search),
+                InitialPenalty(matrix.Host(), problem));
 }
 
 Island::Island(const DistanceMatrix& matrix, const Problem& problem,

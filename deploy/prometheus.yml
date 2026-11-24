@@ -1,0 +1,21 @@
+global:
+  scrape_interval: 15s
+
+scrape_configs:
+  - job_name: orchestrator
+    static_configs:
+      - targets: ["orchestrator:9100"]
+
+  # The orchestrator lists its connected workers (ADR 0010).
+  - job_name: workers
+    http_sd_configs:
+      - url: http://orchestrator:9100/workers
+        refresh_interval: 15s
+
+  - job_name: postgres
+    static_configs:
+      - targets: ["postgres-exporter:9187"]
+
+  - job_name: seaweedfs
+    static_configs:
+      - targets: ["seaweedfs:9327"]

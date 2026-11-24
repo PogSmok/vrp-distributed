@@ -1,0 +1,18 @@
+<!-- WinSW service of a Windows worker (ADR 0019, 0024): see deploy/README.md. -->
+<service>
+  <id>vrp-worker</id>
+  <name>VRP GPU worker</name>
+  <description>Runs tasks on this machine's GPU for the VRP orchestrator.</description>
+  <executable>%BASE%\vrp-worker.exe</executable>
+  <arguments>--config "%BASE%\worker.json"</arguments>
+  <workingdirectory>%BASE%</workingdirectory>
+  <startmode>Automatic</startmode>
+  <!-- It exits with an error after a stall, a lost GPU or out of memory. -->
+  <onfailure action="restart" delay="5 sec"/>
+  <resetfailure>1 hour</resetfailure>
+  <stoptimeout>15 sec</stoptimeout>
+  <log mode="roll-by-size">
+    <sizeThreshold>10240</sizeThreshold>
+    <keepFiles>5</keepFiles>
+  </log>
+</service>

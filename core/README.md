@@ -56,10 +56,9 @@ Known limits, to be measured before they are changed:
   CPU work may outweigh the kernel, which matters for the 1-second steps of
   ADR 0024. Uploading only the changed routes, or applying moves on the GPU,
   are the next steps if a measurement on the slowest GPU shows it.
-- Every `Island` uploads its own copy of the matrix: P islands on one GPU
-  (ADR 0013) hold P copies, about 100 MB each at 5,000 customers. Sharing one
-  device matrix, and batching the children of all islands together, belongs
-  in the worker's design.
+- The P islands on one GPU (ADR 0013) share one `DeviceMatrix` but step in
+  turn. Batching the children of all islands together belongs in the worker's
+  design.
 
 ## Conventions
 

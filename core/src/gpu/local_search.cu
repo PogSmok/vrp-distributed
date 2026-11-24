@@ -14,6 +14,7 @@
 #include "device_buffer.cuh"
 #include "vrp/core/distance_matrix.hpp"
 #include "vrp/core/gpu/device_buffer.hpp"
+#include "vrp/core/gpu/device_matrix.hpp"
 #include "vrp/core/solution.hpp"
 #include "vrp/core/solver/evaluation.hpp"
 #include "vrp/core/status.hpp"
@@ -421,10 +422,11 @@ struct LocalSearch::Staging {
   std::vector<std::uint32_t> empty_route;
 };
 
-StatusOr<LocalSearch> LocalSearch::Create(const DistanceMatrix& matrix,
+StatusOr<LocalSearch> LocalSearch::Create(const DeviceMatrix& device_matrix,
                                           const Problem& problem,
                                           std::size_t neighbor_count,
                                           std::size_t max_batch) {
+  const DistanceMatrix& matrix = device_matrix.Host();
   const std::size_t stops = matrix.StopCount();
   if (problem.demands.size() != stops) {
     return InvalidArgumentError(
@@ -438,6 +440,7 @@ StatusOr<LocalSearch> LocalSearch::Create(const DistanceMatrix& matrix,
 
   LocalSearch search;
   search.matrix_ = &matrix;
+  search.matrix_device_ = device_matrix.Data();
   search.problem_ = problem;
   search.max_batch_ = max_batch;
   search.neighbor_count_ =
@@ -467,7 +470,6 @@ StatusOr<LocalSearch> LocalSearch::Create(const DistanceMatrix& matrix,
         neighbors.begin() + static_cast<std::ptrdiff_t>(u * count));
   }
 
-  VRP_ASSIGN_OR_RETURN(search.matrix_device_, Upload(matrix.Data()));
   VRP_ASSIGN_OR_RETURN(search.demands_,
                        Upload(std::span<const std::uint32_t>(problem.demands)));
   VRP_ASSIGN_OR_RETURN(search.neighbors_,
@@ -524,7 +526,7 @@ StatusOr<std::vector<solver::Evaluation>> LocalSearch::Improve(
   Staging staging(batch, stops, customers, route_count);
   std::vector<Move> moves(batch * stops);
   const SearchView view = {
-      .matrix = matrix_device_.data.get(),
+      .matrix = matrix_device_,
       .stop_count = stops,
       .customer_count = customers,
       .route_count = route_count,

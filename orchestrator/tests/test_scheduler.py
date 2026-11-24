@@ -43,6 +43,7 @@ from vrp_orchestrator.scheduler import (
     SubmitJob,
     Tick,
     UploadChecked,
+    _distance_bytes,
 )
 
 _ALICE = Identity("alice", Role.CLIENT)
@@ -846,14 +847,18 @@ class _SimulatedWorker:
         return self.stopped
 
 
-def test_a_job_no_connected_worker_fits_fails() -> None:
+@pytest.mark.parametrize(
+    ("gpu", "phase"),
+    [(1, Phase.DISTANCE), (_distance_bytes(_GRAPH, 3), Phase.SOLVE)],
+)
+def test_a_job_no_connected_worker_fits_fails(gpu: int, phase: Phase) -> None:
     # Submitted with no worker to check it against, it must not block the
     # queue forever once only a smaller one connects.
     h = Harness()
-    job_id = h.submit()
-    worker = _SimulatedWorker(h, "small", gpu=1)
+    job_id = h.submit(islands_per_task=10_000)
+    worker = _SimulatedWorker(h, "small", gpu=gpu)
     worker.reconnect()
-    while h.job(job_id).phase is not Phase.SOLVE:
+    while h.job(job_id).phase is not phase:
         worker.work()
     h.advance(61)
     assert h.job(job_id).failure == (

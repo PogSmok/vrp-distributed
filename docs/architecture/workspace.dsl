@@ -117,8 +117,9 @@ workspace "vrp-distributed" "Distributed GPU solver for the Vehicle Routing Prob
         // --- DEPLOYMENT ---
         deploymentEnvironment "Lab" {
             deploymentNode "Server PC" "Control plane, storage, monitoring." "Linux or Windows" {
-                containerInstance vrp.orchestrator
-                deploymentNode "Docker Compose" "Third-party services from one Compose file; data in volumes on the server's disk." "Docker" {
+                deploymentNode "Docker Compose" "The control plane from one Compose file; data in volumes on the server's disk." "Docker" {
+                    containerInstance vrp.orchestrator
+                    containerInstance vrp.app
                     containerInstance vrp.stateDb
                     containerInstance vrp.objectStore
                     softwareSystemInstance prometheus
@@ -127,9 +128,6 @@ workspace "vrp-distributed" "Distributed GPU solver for the Vehicle Routing Prob
             }
             deploymentNode "GPU Worker PC" "One NVIDIA GPU, same LAN as the server. The worker runs as a service." "Windows or Linux" "" "1..8" {
                 containerInstance vrp.worker
-            }
-            deploymentNode "Dispatcher PC" "Reaches the orchestrator and object store." "Windows or Linux" {
-                containerInstance vrp.app
             }
             deploymentNode "Admin Workstation" "Graph imports; keeps the nightly database backups." "Windows or Linux" {
                 containerInstance vrp.preprocessor

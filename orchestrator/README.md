@@ -17,7 +17,7 @@ Schedules jobs on the GPU workers and owns all job state (ADR 0003, 0021,
 | `auth.py`       | The token file, the interceptor that checks tokens and roles, TLS credentials    | 0009             |
 | `services.py`   | The Client, Admin and Worker APIs, which turn calls into the Scheduler's events  | 0002, 0012       |
 | `registry.py`   | Connected workers: their send queues and metrics addresses                       | 0010, 0021       |
-| `pool.py`       | The Migrant Pool, which takes an island's migrants only from its attempt         | 0004             |
+| `pool.py`       | The Migrant Pool, and each job's best plan on the roads for the live map         | 0004, 0030       |
 | `artifacts.py`  | The Artifact Manager: presigned URLs, upload checks, graph checks, expiry        | 0009, 0016, 0029 |
 | `telemetry.py`  | JSON-line logs with the workers' lines, metrics, worker discovery for Prometheus | 0010             |
 | `config.py`     | The configuration file                                                           | 0019             |
@@ -83,8 +83,9 @@ and creates the bucket if it is missing; SIGTERM or Ctrl+C stops it.
   the database while workers resend what was not confirmed.
 - **Defaults** are in `scheduler.Settings`. The leases last 30 s and the
   group waits 60 s; a task has 3 attempts, and the solve phase restarts at
-  most once. The GPU memory check (ADR 0007) is a rough upper bound: the
-  graph's offsets, targets and one weight, plus one matrix per island.
+  most once. The GPU memory check (ADR 0007) counts what each phase
+  allocates: the graph, plus one distance batch in DISTANCE, or the shared
+  matrix and each island's working memory in SOLVE.
 
 Known limits, to change when they matter:
 

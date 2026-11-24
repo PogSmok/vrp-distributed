@@ -1,0 +1,31 @@
+[project]
+name = "vrp-client"
+version = "0.1.0"
+description = "Submits VRP jobs and shows their search live on a map (ADR 0012, 0030)."
+readme = "README.md"
+requires-python = ">=3.13"
+dependencies = [
+    "grpcio>=1.85.3,<2",
+    "protobuf>=7.35.1,<8",
+    "streamlit>=1.67.0,<2",
+]
+
+[build-system]
+# grpcio-tools generates the contract's code when the package is built.
+requires = ["hatchling>=1.33,<2", "grpcio-tools==1.85.3"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.hooks.custom]
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/vrp_client"]
+# Generated, so ignored by git, but part of the package.
+artifacts = ["src/vrp_client/vrp_pb2.py", "src/vrp_client/vrp_pb2.pyi"]
+
+[tool.uv]
+# Rebuild, and so regenerate, when the contract changes.
+cache-keys = [
+    { file = "pyproject.toml" },
+    { file = "hatch_build.py" },
+    { file = "../proto/vrp/v1/vrp.proto" },
+]

@@ -66,6 +66,9 @@ Status Run(const std::filesystem::path& config_path) {
   VRP_ASSIGN_OR_RETURN(const core::gpu::DeviceInfo device,
                        core::gpu::CurrentDeviceInfo());
   Metrics metrics(config.metrics_listen);
+  if (!metrics.WatchGpu(device.pci_bus_id)) {
+    log->Info("NVML is unavailable: no GPU metrics");
+  }
 
   v1::Register identity;
   identity.set_protocol_major(v1::PROTOCOL_VERSION_MAJOR);

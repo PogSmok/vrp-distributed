@@ -296,7 +296,17 @@ void SessionClient::DrainCompute(std::deque<v1::WorkerMessage>* writes) {
     }
     std::optional<v1::WorkerMessage> to_send =
         state_.FromCompute(*std::move(message));
-    if (to_send.has_value() && writes != nullptr) {
+    if (!to_send.has_value() || writes == nullptr) {
+      continue;
+    }
+    // On a slow link, only the latest road plan waits (ADR 0030).
+    const auto waiting =
+        to_send->has_road_plan()
+            ? std::ranges::find_if(*writes, &v1::WorkerMessage::has_road_plan)
+            : writes->end();
+    if (waiting != writes->end()) {
+      *waiting = *std::move(to_send);
+    } else {
       writes->push_back(*std::move(to_send));
     }
   }

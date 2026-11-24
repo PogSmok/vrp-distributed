@@ -38,6 +38,7 @@ if(VRP_ENABLE_CUDA)
         src/gpu/device.cpp
         src/gpu/device_buffer.cu
         src/gpu/device_graph.cu
+        src/gpu/device_matrix.cu
         src/gpu/distance_batch.cu
         src/gpu/distance_rows.cpp
         src/gpu/island.cpp

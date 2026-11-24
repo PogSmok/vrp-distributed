@@ -8,6 +8,7 @@
 
 #include "vrp/core/distance_matrix.hpp"
 #include "vrp/core/gpu/device_buffer.hpp"
+#include "vrp/core/gpu/device_matrix.hpp"
 #include "vrp/core/solution.hpp"
 #include "vrp/core/solver/evaluation.hpp"
 #include "vrp/core/status.hpp"
@@ -28,12 +29,12 @@ class LocalSearch {
   // kInvalidArgument if the matrix and the problem disagree on the number of
   // stops or `max_batch` is 0, and with kInternal or kDeviceLost if a CUDA
   // call fails.
-  static StatusOr<LocalSearch> Create(const DistanceMatrix& matrix,
+  static StatusOr<LocalSearch> Create(const DeviceMatrix& matrix,
                                       const Problem& problem,
                                       std::size_t neighbor_count,
                                       std::size_t max_batch);
   // A temporary matrix would be freed while the search still uses it.
-  static StatusOr<LocalSearch> Create(DistanceMatrix&&, const Problem&,
+  static StatusOr<LocalSearch> Create(DeviceMatrix&&, const Problem&,
                                       std::size_t, std::size_t) = delete;
 
   // Improves each solution in place; each has at most `vehicle_count`
@@ -57,11 +58,11 @@ class LocalSearch {
   Status UploadStaging(const Staging& staging) const;
 
   const DistanceMatrix* matrix_ = nullptr;
+  const Cost* matrix_device_ = nullptr;  // shared with other searches
   Problem problem_;
   std::size_t neighbor_count_ = 0;
   std::size_t max_batch_ = 0;
 
-  DeviceBuffer<Cost> matrix_device_;
   DeviceBuffer<std::uint32_t> demands_;
   DeviceBuffer<std::uint32_t> neighbors_;
   // Per solution of the batch, rebuilt every round; see local_search.cu.

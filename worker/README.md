@@ -12,10 +12,12 @@ protocol it speaks.
 | `session_state`  | The protocol's rules, with no I/O: held attempts, kept reports, stale ones | 0013, 0022       |
 | `task_runner`    | The compute thread: runs one task at a time, in short steps                | 0018, 0024, 0025 |
 | `queues`         | The two queues, the only thing the two threads share                       | 0024             |
+| `plan_router`    | Routes each new best plan on the roads for the live map, at low priority   | 0030             |
 | `threaded_for`   | The CPU thread pool of FINALIZE, which hands exceptions back to its caller | 0024, 0025       |
 | `transfer`       | Presigned GETs and PUTs through libcurl, with retries and fresh URLs       | 0009, 0014       |
 | `graph_cache`    | Graph files on disk, checked against the assignment's SHA-256              | 0007, 0015       |
 | `telemetry`      | JSON-line logs, and `/metrics` for Prometheus                              | 0010             |
+| `gpu_monitor`    | GPU use, memory, temperature and power from NVML, read at each scrape      | 0010             |
 | `config`         | The configuration file                                                     | 0019             |
 
 ## Running it
@@ -81,8 +83,7 @@ and stops the worker.
 
 Known limits, to change when they matter:
 
-- Each island keeps its own copy of the matrix on the GPU (see
-  `core/README.md`), and islands step in turn rather than in one batch.
+- Islands step in turn rather than in one batch (see `core/README.md`).
 - A graph file is held in memory while it is downloaded and checked, and the
   cache never evicts a graph version (ADR 0015's retention is still open).
 - `worker.log` is not rotated.

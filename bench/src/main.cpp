@@ -34,6 +34,7 @@
 #include "vrp/core/edge_geometry.hpp"
 #include "vrp/core/gpu/device.hpp"
 #include "vrp/core/gpu/device_graph.hpp"
+#include "vrp/core/gpu/device_matrix.hpp"
 #include "vrp/core/gpu/distance_rows.hpp"
 #include "vrp/core/gpu/island.hpp"
 #include "vrp/core/graph.hpp"
@@ -297,9 +298,11 @@ struct SolveOutcome {
 StatusOr<SolveOutcome> Solve(const core::DistanceMatrix& matrix,
                              const core::Problem& problem,
                              const Options& options) {
+  VRP_ASSIGN_OR_RETURN(const core::gpu::DeviceMatrix device,
+                       core::gpu::DeviceMatrix::Create(matrix));
   VRP_ASSIGN_OR_RETURN(
       core::gpu::Island island,
-      core::gpu::Island::Create(matrix, problem, options.island, options.seed));
+      core::gpu::Island::Create(device, problem, options.island, options.seed));
   const auto start = Clock::now();
   std::vector<core::ConvergencePoint> convergence;
   while (Seconds(Clock::now() - start).count() < options.seconds) {

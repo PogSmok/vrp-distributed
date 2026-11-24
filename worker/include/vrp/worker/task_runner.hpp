@@ -4,6 +4,7 @@
 #include <chrono>
 #include <cstddef>
 #include <cstdint>
+#include <functional>
 #include <mutex>
 #include <optional>
 #include <span>
@@ -44,6 +45,8 @@ class TaskRunner {
 
  private:
   using Clock = std::chrono::steady_clock;
+  // True once a load or transfer should give up.
+  using StopCheck = std::function<bool()>;
 
   // The presigned URLs of the running attempt, which can be refreshed.
   struct Urls {
@@ -74,8 +77,10 @@ class TaskRunner {
   core::Status Solve(const v1::Assignment& assignment);
   core::Status Finalize(const v1::Assignment& assignment);
 
-  core::StatusOr<Resident*> LoadGraph(const v1::GraphFiles& files);
-  core::Status LoadGeometry(Resident& resident, const v1::GraphFiles& files);
+  core::StatusOr<Resident*> LoadGraph(const v1::GraphFiles& files,
+                                      const StopCheck& stopped);
+  core::Status LoadGeometry(Resident& resident, const v1::GraphFiles& files,
+                            const StopCheck& stopped);
   core::StatusOr<core::DistanceMatrix> DownloadMatrix(
       const v1::SolveTask& task);
   // The chunk's bytes. Fails with kDataLoss if they do not match its SHA-256
@@ -94,10 +99,12 @@ class TaskRunner {
   bool Poll();
   // `Poll`, as kCancelled if the task should stop.
   core::Status CheckStop();
+  // `Poll`, for the compute thread's own loads and transfers.
+  [[nodiscard]] StopCheck Polling();
   void Take(v1::OrchestratorMessage message);
   [[nodiscard]] bool SolveStopped();
-  core::Status RefreshUrls();
-  ObjectAccess Access(std::string Urls::* url);
+  core::Status RefreshUrls(const StopCheck& stopped);
+  ObjectAccess Access(std::string Urls::* url, const StopCheck& stopped);
 
   Queues* queues_;
   const ObjectTransfer* transfer_;

@@ -6,6 +6,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <cstring>
+#include <functional>
 #include <mutex>
 #include <optional>
 #include <span>
@@ -18,6 +19,7 @@
 
 #include "vrp/core/distance_matrix.hpp"
 #include "vrp/core/gpu/device_graph.hpp"
+#include "vrp/core/gpu/device_matrix.hpp"
 #include "vrp/core/gpu/distance_rows.hpp"
 #include "vrp/core/gpu/island.hpp"
 #include "vrp/core/graph_file.hpp"
@@ -31,6 +33,7 @@
 #include "vrp/core/types.hpp"
 #include "vrp/v1/vrp.pb.h"
 #include "vrp/worker/hashing.hpp"
+#include "vrp/worker/plan_router.hpp"
 #include "vrp/worker/threaded_for.hpp"
 
 namespace vrp::worker {
@@ -53,6 +56,10 @@ constexpr auto kUrlPoll = 50ms;
 constexpr std::uint64_t kMaxGraphFileBytes = std::uint64_t{1} << 36;
 
 constexpr std::string_view kStopped = "the task was stopped";
+
+Status IfStopped(bool stopped) {
+  return stopped ? core::CancelledError(std::string(kStopped)) : Status();
+}
 
 bool SameAttempt(const v1::Attempt& a, const v1::Attempt& b) {
   return a.task_id() == b.task_id() && a.attempt() == b.attempt();
@@ -267,7 +274,7 @@ Status TaskRunner::Execute(const v1::Assignment& assignment) {
 Status TaskRunner::Prepare(const v1::Assignment& assignment) {
   const v1::PrepareTask& task = assignment.prepare();
   VRP_ASSIGN_OR_RETURN(const Resident* const resident,
-                       LoadGraph(assignment.graph()));
+                       LoadGraph(assignment.graph(), Polling()));
   const std::vector<core::LatLon> stops = StopPositions(task.problem());
   VRP_ASSIGN_OR_RETURN(
       const core::SnappedPoints snapped,
@@ -289,7 +296,8 @@ Status TaskRunner::Prepare(const v1::Assignment& assignment) {
 
 Status TaskRunner::Distance(const v1::Assignment& assignment) {
   const v1::DistanceTask& task = assignment.distance();
-  VRP_ASSIGN_OR_RETURN(Resident* const resident, LoadGraph(assignment.graph()));
+  VRP_ASSIGN_OR_RETURN(Resident* const resident,
+                       LoadGraph(assignment.graph(), Polling()));
   VRP_ASSIGN_OR_RETURN(const core::EdgeCost cost, ToEdgeCost(task.edge_cost()));
   VRP_ASSIGN_OR_RETURN(const core::gpu::DeviceGraph* const device,
                        LoadDevice(resident->device, resident->device_cost,
@@ -308,7 +316,7 @@ Status TaskRunner::Distance(const v1::Assignment& assignment) {
 
 StatusOr<std::string> TaskRunner::ReadChunk(const v1::MatrixChunk& chunk,
                                             int index, std::size_t size) {
-  ObjectAccess access = Access(nullptr);
+  ObjectAccess access = Access(nullptr, Polling());
   access.url = [this, index] {
     const std::scoped_lock lock(mutex_);
     return urls_.matrix.at(static_cast<std::size_t>(index));
@@ -370,15 +378,17 @@ Status TaskRunner::Solve(const v1::Assignment& assignment) {
     resident_->device.reset();
   }
   VRP_ASSIGN_OR_RETURN(const core::DistanceMatrix matrix, DownloadMatrix(task));
+  VRP_ASSIGN_OR_RETURN(const core::gpu::DeviceMatrix device_matrix,
+                       core::gpu::DeviceMatrix::Create(matrix));
   const core::Problem problem = ToProblem(task.problem());
   const core::gpu::IslandParameters parameters;
   std::vector<IslandRun> islands;
   islands.reserve(static_cast<std::size_t>(task.islands_size()));
   for (const v1::IslandStart& entry : task.islands()) {
     VRP_RETURN_IF_ERROR(CheckStop());
-    VRP_ASSIGN_OR_RETURN(
-        core::gpu::Island island,
-        core::gpu::Island::Create(matrix, problem, parameters, entry.seed()));
+    VRP_ASSIGN_OR_RETURN(core::gpu::Island island,
+                         core::gpu::Island::Create(device_matrix, problem,
+                                                   parameters, entry.seed()));
     islands.push_back({.index = entry.island(),
                        .island = std::move(island),
                        .best_cost = std::nullopt,
@@ -386,6 +396,54 @@ Status TaskRunner::Solve(const v1::Assignment& assignment) {
                        .export_pending = false,
                        .next_exchange = {}});
   }
+
+  // Stops and joins before the islands go, whichever way this returns.
+  std::optional<PlanRouter> router;
+  if (const StatusOr<core::EdgeCost> edge_cost =
+          ToEdgeCost(task.problem().edge_cost());
+      edge_cost.IsOk() && !task.stop_nodes().empty()) {
+    router.emplace(
+        PlanRouter::Task{
+            .attempt = attempt_,
+            .edge_cost = edge_cost.Value(),
+            .problem = problem,
+            .stop_nodes = {task.stop_nodes().begin(), task.stop_nodes().end()},
+        },
+        [this,
+         &assignment](const StopCheck& stopped) -> StatusOr<PlanRouter::Roads> {
+          // `resident_` is this thread's until the router stops: SOLVE does
+          // not touch it again.
+          VRP_ASSIGN_OR_RETURN(Resident* const resident,
+                               LoadGraph(assignment.graph(), stopped));
+          VRP_RETURN_IF_ERROR(
+              LoadGeometry(*resident, assignment.graph(), stopped));
+          return PlanRouter::Roads{.graph = &resident->graph,
+                                   .geometry = &resident->geometry};
+        },
+        [this](v1::RoadPlan plan) {
+          v1::WorkerMessage message;
+          *message.mutable_road_plan() = std::move(plan);
+          queues_->to_session.Push(std::move(message));
+        },
+        [this](const std::string& warning) { log_->Info(warning, tags_); },
+        // Waiting for it is progress, or the stall check would end the worker.
+        [this] { Poll(); });
+  }
+  std::optional<core::RouteCost> offered;
+  const auto offer_best = [&] {
+    const IslandRun* best = nullptr;
+    for (const IslandRun& run : islands) {
+      if (run.best_cost.has_value() &&
+          (!offered.has_value() || *run.best_cost < *offered)) {
+        offered = run.best_cost;
+        best = &run;
+      }
+    }
+    if (best != nullptr && router.has_value()) {
+      router->Offer(best->index, *offered,
+                    core::Solution{.routes = best->island.Best()->routes});
+    }
+  };
 
   const Clock::time_point ready = Clock::now();
   for (IslandRun& run : islands) {
@@ -404,6 +462,7 @@ Status TaskRunner::Solve(const v1::Assignment& assignment) {
   Clock::time_point next_report = ready + kReportInterval;
   while (true) {
     ImportMigrants(islands, start);
+    offer_best();
     for (IslandRun& run : islands) {
       VRP_RETURN_IF_ERROR(CheckStop());
       if (SolveStopped()) {
@@ -431,6 +490,10 @@ void TaskRunner::ImportMigrants(std::vector<IslandRun>& islands,
     const std::scoped_lock lock(mutex_);
     incoming.swap(migrants_);
   }
+  if (incoming.empty()) {
+    return;
+  }
+  const Clock::time_point before = Clock::now();
   for (const v1::Migrant& migrant : incoming) {
     const auto run =
         std::ranges::find(islands, migrant.island(), &IslandRun::index);
@@ -447,6 +510,7 @@ void TaskRunner::ImportMigrants(std::vector<IslandRun>& islands,
     metrics_->migrants_imported.Increment();
     run->Record(start);
   }
+  metrics_->migration_seconds.Observe(Seconds(Clock::now() - before).count());
 }
 
 void TaskRunner::Exchange(IslandRun& run, Clock::time_point now) {
@@ -470,6 +534,7 @@ void TaskRunner::Exchange(IslandRun& run, Clock::time_point now) {
   *request.mutable_attempt() = attempt_;
   request.set_island(run.index);
   queues_->to_session.Push(std::move(message));
+  metrics_->migration_seconds.Observe(Seconds(Clock::now() - now).count());
 }
 
 void TaskRunner::SendProgress(std::vector<IslandRun>& islands,
@@ -503,8 +568,9 @@ void TaskRunner::SendProgress(std::vector<IslandRun>& islands,
 
 Status TaskRunner::Finalize(const v1::Assignment& assignment) {
   const v1::FinalizeTask& task = assignment.finalize();
-  VRP_ASSIGN_OR_RETURN(Resident* const resident, LoadGraph(assignment.graph()));
-  VRP_RETURN_IF_ERROR(LoadGeometry(*resident, assignment.graph()));
+  VRP_ASSIGN_OR_RETURN(Resident* const resident,
+                       LoadGraph(assignment.graph(), Polling()));
+  VRP_RETURN_IF_ERROR(LoadGeometry(*resident, assignment.graph(), Polling()));
   VRP_ASSIGN_OR_RETURN(const core::EdgeCost cost,
                        ToEdgeCost(task.problem().edge_cost()));
   std::vector<core::NodeId> stop_nodes(task.stop_nodes().begin(),
@@ -545,22 +611,23 @@ Status TaskRunner::Finalize(const v1::Assignment& assignment) {
 // ---- Shared -----------------------------------------------------------------
 
 StatusOr<TaskRunner::Resident*> TaskRunner::LoadGraph(
-    const v1::GraphFiles& files) {
+    const v1::GraphFiles& files, const StopCheck& stopped) {
   if (resident_.has_value() && resident_->version == files.graph_version() &&
       resident_->graph_sha256 == files.graph_sha256()) {
     return &*resident_;
   }
   resident_.reset();  // frees its memory, on the GPU too, before the next
-  VRP_ASSIGN_OR_RETURN(
-      const std::string bytes,
-      cache_->Read(
-          files.graph_version(), "graph.bin", files.graph_sha256(), [this] {
-            return transfer_->Get(Access(&Urls::graph), kMaxGraphFileBytes);
-          }));
-  VRP_RETURN_IF_ERROR(CheckStop());
+  VRP_ASSIGN_OR_RETURN(const std::string bytes,
+                       cache_->Read(files.graph_version(), "graph.bin",
+                                    files.graph_sha256(), [this, &stopped] {
+                                      return transfer_->Get(
+                                          Access(&Urls::graph, stopped),
+                                          kMaxGraphFileBytes);
+                                    }));
+  VRP_RETURN_IF_ERROR(IfStopped(stopped()));
   VRP_ASSIGN_OR_RETURN(core::RoadGraph graph,
                        core::ParseGraphFile(std::as_bytes(std::span(bytes))));
-  VRP_RETURN_IF_ERROR(CheckStop());
+  VRP_RETURN_IF_ERROR(IfStopped(stopped()));
   Resident& loaded = resident_.emplace(Resident{
       .version = files.graph_version(),
       .graph_sha256 = files.graph_sha256(),
@@ -574,8 +641,8 @@ StatusOr<TaskRunner::Resident*> TaskRunner::LoadGraph(
   return &loaded;
 }
 
-Status TaskRunner::LoadGeometry(Resident& resident,
-                                const v1::GraphFiles& files) {
+Status TaskRunner::LoadGeometry(Resident& resident, const v1::GraphFiles& files,
+                                const StopCheck& stopped) {
   if (resident.geometry_sha256 == files.geometry_sha256()) {
     return {};
   }
@@ -584,15 +651,15 @@ Status TaskRunner::LoadGeometry(Resident& resident,
     VRP_ASSIGN_OR_RETURN(
         const std::string bytes,
         cache_->Read(files.graph_version(), "edge_geometry.bin",
-                     files.geometry_sha256(), [this] {
-                       return transfer_->Get(Access(&Urls::geometry),
+                     files.geometry_sha256(), [this, &stopped] {
+                       return transfer_->Get(Access(&Urls::geometry, stopped),
                                              kMaxGraphFileBytes);
                      }));
-    VRP_RETURN_IF_ERROR(CheckStop());
+    VRP_RETURN_IF_ERROR(IfStopped(stopped()));
     VRP_ASSIGN_OR_RETURN(
         geometry, core::ParseEdgeGeometryFile(std::as_bytes(std::span(bytes)),
                                               resident.graph));
-    VRP_RETURN_IF_ERROR(CheckStop());
+    VRP_RETURN_IF_ERROR(IfStopped(stopped()));
   }
   resident.geometry = std::move(geometry);
   resident.geometry_sha256 = files.geometry_sha256();
@@ -605,7 +672,7 @@ Status TaskRunner::UploadResult(std::span<const std::byte> body) {
   VRP_ASSIGN_OR_RETURN(*upload.mutable_md5(), Md5Hex(body));
   VRP_ASSIGN_OR_RETURN(*upload.mutable_sha256(), Sha256Hex(body));
   upload.set_size_bytes(body.size());
-  VRP_RETURN_IF_ERROR(transfer_->Put(Access(&Urls::upload), body));
+  VRP_RETURN_IF_ERROR(transfer_->Put(Access(&Urls::upload, Polling()), body));
   SendReport(std::move(report));
   return {};
 }
@@ -617,8 +684,10 @@ void TaskRunner::SendReport(v1::TaskReport report) {
   queues_->to_session.Push(std::move(message));
 }
 
-Status TaskRunner::CheckStop() {
-  return Poll() ? core::CancelledError(std::string(kStopped)) : Status();
+Status TaskRunner::CheckStop() { return IfStopped(Poll()); }
+
+TaskRunner::StopCheck TaskRunner::Polling() {
+  return [this] { return Poll(); };
 }
 
 bool TaskRunner::Poll() {
@@ -682,7 +751,7 @@ bool TaskRunner::SolveStopped() {
   return solve_stopped_;
 }
 
-Status TaskRunner::RefreshUrls() {
+Status TaskRunner::RefreshUrls(const StopCheck& stopped) {
   std::uint64_t seen = 0;
   {
     const std::scoped_lock lock(mutex_);
@@ -695,9 +764,7 @@ Status TaskRunner::RefreshUrls() {
     queues_->to_session.Push(std::move(message));
     const Clock::time_point ask_again = Clock::now() + kUrlWait;
     while (Clock::now() < ask_again) {
-      if (Poll()) {
-        return core::CancelledError(std::string(kStopped));
-      }
+      VRP_RETURN_IF_ERROR(IfStopped(stopped()));
       {
         const std::scoped_lock lock(mutex_);
         if (url_generation_ != seen) {
@@ -709,7 +776,8 @@ Status TaskRunner::RefreshUrls() {
   }
 }
 
-ObjectAccess TaskRunner::Access(std::string Urls::* url) {
+ObjectAccess TaskRunner::Access(std::string Urls::* url,
+                                const StopCheck& stopped) {
   ObjectAccess access;
   if (url != nullptr) {
     access.url = [this, url] {
@@ -717,8 +785,8 @@ ObjectAccess TaskRunner::Access(std::string Urls::* url) {
       return urls_.*url;
     };
   }
-  access.refresh_url = [this] { return RefreshUrls(); };
-  access.stop_requested = [this] { return Poll(); };
+  access.refresh_url = [this, stopped] { return RefreshUrls(stopped); };
+  access.stop_requested = stopped;
   access.warn = [this](const std::string& message) {
     log_->Error(message, tags_);
   };

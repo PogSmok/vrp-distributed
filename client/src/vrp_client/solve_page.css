@@ -1,0 +1,16 @@
+/* The map fills the page; Streamlit keeps only the sidebar. */
+[data-testid="stMainBlockContainer"] {
+  padding: 0;
+  max-width: none;
+}
+
+[data-testid="stMain"] {
+  overflow: hidden;
+}
+
+[data-testid="stMain"] iframe {
+  display: block;
+  width: 100%;
+  height: 100dvh !important;
+  border: 0;
+}

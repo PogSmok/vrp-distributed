@@ -1,6 +1,6 @@
 # 0014. Failure and recovery model
 
-- **Status:** Accepted
+- **Status:** Accepted; store retries bounded by 0032
 - **Date:** 2026-11-21
 - **Related:** 0001, 0004, 0009, 0013, 0016, 0021, 0022
 
@@ -29,10 +29,8 @@ case, and what is deliberately not recovered.
 - **The database is down.** Heartbeats continue in memory. The orchestrator
   rejects new jobs, and transitions wait for the database (degraded mode,
   0021).
-- **The object store is down.** Transfers retry with backoff, asking for
-  fresh URLs when needed (0009); leases stay alive. A transfer still failing
-  after 10 minutes fails its attempt, so that a store that never returns, or
-  a wrong address for it, ends the job with a stored reason.
+- **The object store is down.** Uploads retry with backoff, asking for fresh
+  URLs when needed (0009); leases stay alive.
 - **A stored object is later found corrupt.** The job fails with an explicit
   reason.
 - **The client disconnects.** The job continues, and the client fetches the

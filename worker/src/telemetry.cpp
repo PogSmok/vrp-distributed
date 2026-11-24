@@ -23,6 +23,7 @@
 #include <vector>
 
 #include "vrp/core/status.hpp"
+#include "vrp/worker/gpu_monitor.hpp"
 
 namespace vrp::worker {
 namespace {
@@ -138,8 +139,25 @@ Metrics::Metrics(const std::string& listen)
       migrants_imported(
           AddCounter(*registry_, "vrp_worker_migrants_imported_total",
                      "Migrants from the pool that passed the checks.")),
+      migration_seconds(prometheus::BuildHistogram()
+                            .Name("vrp_worker_migration_seconds")
+                            .Help("Time spent exchanging and importing "
+                                  "migrants, per exchange.")
+                            .Register(*registry_)
+                            .Add({},
+                                 prometheus::Histogram::BucketBoundaries{
+                                     0.0001, 0.001, 0.01, 0.05, 0.1, 0.5})),
       exposer_(listen) {
   exposer_.RegisterCollectable(registry_);
+}
+
+bool Metrics::WatchGpu(const std::string& pci_bus_id) {
+  gpu_ = GpuMonitor::Open(pci_bus_id);
+  if (gpu_ == nullptr) {
+    return false;
+  }
+  exposer_.RegisterCollectable(gpu_);
+  return true;
 }
 
 void Metrics::CountTask(const std::string& kind, const std::string& outcome) {
