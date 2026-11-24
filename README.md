@@ -190,15 +190,6 @@ plane, and a Linux one running the CPU worker on 12 threads:
 | 1,000 customers, 60 s, 5 seeds              | GPU and CPU together: median cost 0.32% below the GPU alone's                                             |
 | 400 customers, 5 islands, 40 s limit        | 817.4 and 821.0 km in two runs, 22 of 24 vehicles used                                                    |
 
-Not yet shown: more than two workers, the GTX 1060 that is the oldest target
-GPU, and the worker installed as a systemd or WinSW service. The default of 5
-islands per worker has not been benchmarked against fewer. The components'
-READMEs list their known limits: [worker](worker/README.md) (graph parsing
-and the stall check, log rotation, untested threads),
-[client](client/README.md) (sign-in per tab, large road plans, untested map code)
-and [orchestrator](orchestrator/README.md) (the memory check).
-Certificates renew only by hand, once a year ([deploy](deploy/README.md#start-it)).
-
 [docs/quality-attributes.md](docs/quality-attributes.md) lists every target
 beside what has been measured.
 
