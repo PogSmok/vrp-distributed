@@ -399,7 +399,7 @@ jobs:
           grep -q 'permission denied for table jobs' <<<"$denied"
 
       - name: Download the CPU worker
-        uses: actions/download-artifact@v7
+        uses: actions/download-artifact@v8
         with:
           name: vrp-worker-cpu
           path: ${{ runner.temp }}/worker
