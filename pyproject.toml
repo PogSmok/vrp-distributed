@@ -23,7 +23,7 @@ dev = [
 # What `deploy/admin.py` needs in the image, to make the lab CA.
 deploy = ["cryptography==50.0.2"]
 # The docs' spelling check in CI, locked and audited like the rest.
-docs = ["codespell==2.4.1"]
+docs = ["codespell==2.4.3"]
 
 # ---- ruff: formatter and linter ----------------------------------------------
 
